@@ -2,13 +2,16 @@
 
 import { ClassifiedObject, ObjectType, ObjectClassification } from '@/types/objects'
 import ObjectCard from './ObjectCard'
+import TransferDialog from './TransferDialog'
+import BurnDialog from './BurnDialog'
 import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Filter, Trash2, Send, Eye, EyeOff, Coins, Image, Shield, AlertTriangle } from 'lucide-react'
+import { Filter, Trash2, Send, EyeOff, Coins, Image, Shield, AlertTriangle } from 'lucide-react'
+import { TransactionService } from '@/services/transactionService'
+import { useCurrentAccount, useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
 
 interface ObjectGridProps {
   objects: ClassifiedObject[]
@@ -21,6 +24,26 @@ export default function ObjectGrid({ objects, isLoading, error }: ObjectGridProp
   const [filterType, setFilterType] = useState<ObjectType | 'all'>('all')
   const [filterClassification, setFilterClassification] = useState<ObjectClassification | 'all'>('all')
   const [hiddenObjects, setHiddenObjects] = useState<Set<string>>(new Set())
+  const [showTransferDialog, setShowTransferDialog] = useState(false)
+  const [showBurnDialog, setShowBurnDialog] = useState(false)
+  
+  // Sui hooks
+  const account = useCurrentAccount()
+  const client = useSuiClient()
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction()
+  
+  // Transaction service
+  const transactionService = useMemo(() => new TransactionService(client), [client])
+
+  // Wrapper for signAndExecute to return a Promise
+  const executeTransaction = (args: any) => {
+    return new Promise((resolve, reject) => {
+      signAndExecute(args, {
+        onSuccess: (result) => resolve(result),
+        onError: (error) => reject(error),
+      })
+    })
+  }
 
   const filteredObjects = useMemo(() => {
     let filtered = objects
@@ -247,11 +270,11 @@ export default function ObjectGrid({ objects, isLoading, error }: ObjectGridProp
               <EyeOff className="w-4 h-4 mr-1" />
               Hide Selected
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => setShowTransferDialog(true)}>
               <Send className="w-4 h-4 mr-1" />
               Transfer
             </Button>
-            <Button variant="destructive" size="sm">
+            <Button variant="destructive" size="sm" onClick={() => setShowBurnDialog(true)}>
               <Trash2 className="w-4 h-4 mr-1" />
               Burn
             </Button>
@@ -284,6 +307,38 @@ export default function ObjectGrid({ objects, isLoading, error }: ObjectGridProp
           />
         ))}
       </div>
+
+      {/* Transfer Dialog */}
+      {account && (
+        <TransferDialog
+          open={showTransferDialog}
+          onOpenChange={setShowTransferDialog}
+          selectedObjects={objects.filter(obj => selectedObjects.has(obj.object.id))}
+          onTransferComplete={() => {
+            setSelectedObjects(new Set())
+            // Optionally refresh the objects list here
+          }}
+          transactionService={transactionService}
+          senderAddress={account.address}
+          onExecuteTransaction={executeTransaction}
+        />
+      )}
+
+      {/* Burn Dialog */}
+      {account && (
+        <BurnDialog
+          open={showBurnDialog}
+          onOpenChange={setShowBurnDialog}
+          selectedObjects={objects.filter(obj => selectedObjects.has(obj.object.id))}
+          onBurnComplete={() => {
+            setSelectedObjects(new Set())
+            // Optionally refresh the objects list here
+          }}
+          transactionService={transactionService}
+          senderAddress={account.address}
+          onExecuteTransaction={executeTransaction}
+        />
+      )}
     </div>
   )
 }
