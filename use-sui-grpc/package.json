@@ -1,0 +1,44 @@
+{
+  "name": "sui-grpc-client",
+  "version": "1.0.0",
+  "description": "Production-ready gRPC client for Sui blockchain wallet and object data",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "protos/**/*",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "proto:generate": "npm run proto:clean && npm run proto:compile",
+    "proto:clean": "rimraf src/generated",
+    "proto:compile": "mkdir -p src/generated && grpc_tools_node_protoc --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts --plugin=protoc-gen-grpc=./node_modules/.bin/grpc_tools_node_protoc_plugin --js_out=import_style=commonjs,binary:src/generated --ts_out=grpc_js:src/generated --grpc_out=grpc_js:src/generated --proto_path=protos protos/sui/rpc/v2beta2/*.proto protos/google/rpc/*.proto protos/google/protobuf/*.proto",
+    "example": "ts-node examples/read-wallet.ts"
+  },
+  "keywords": ["sui", "grpc", "blockchain", "web3", "wallet", "typescript"],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/sui-grpc-client.git"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.9.14",
+    "@grpc/proto-loader": "^0.7.10",
+    "google-protobuf": "^3.21.2"
+  },
+  "devDependencies": {
+    "@types/google-protobuf": "^3.15.12",
+    "@types/node": "^20.10.0",
+    "grpc-tools": "^1.12.4",
+    "grpc_tools_node_protoc_ts": "^5.3.3",
+    "rimraf": "^5.0.5",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.0"
+  }
+}

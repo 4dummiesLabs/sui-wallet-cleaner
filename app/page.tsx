@@ -2,30 +2,53 @@
 
 import WalletButton from '@/components/WalletButton'
 import ObjectGrid from '@/components/ObjectGrid'
-import { useWalletObjects } from '@/hooks/useObjects'
+import MagnetLines from '@/components/MagnetLines'
+import SpotlightCard from '@/components/SpotlightCard'
+import { useEnhancedWalletObjects } from '@/hooks/useGrpcObjects'
 import { useCurrentAccount } from '@mysten/dapp-kit'
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
-import { Shield, Scan, Settings, Info } from 'lucide-react'
 
 export default function Home() {
   const account = useCurrentAccount()
-  const { data: objects = [], isLoading, error } = useWalletObjects()
+  const { data: walletData, isLoading, error, refetch } = useEnhancedWalletObjects()
+  
+  // Extract classified objects from wallet data for ObjectGrid
+  const objects = walletData?.classifiedObjects || []
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur">
-        <div className="container mx-auto px-4 py-4">
+    <div className="min-h-screen relative" style={{ background: 'var(--background-gradient)' }}>
+      {/* Animated Background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <MagnetLines 
+          rows={20} 
+          columns={20} 
+          containerSize="120%" 
+          lineColor="rgba(192, 230, 255, 0.08)"
+          className="absolute -top-10 -left-10"
+        />
+      </div>
+      
+      {/* Skip Navigation Link */}
+      <a 
+        href="#main-content" 
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] bg-primary text-primary-foreground px-4 py-2 rounded-md transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+      >
+        Skip to main content
+      </a>
+      
+      {/* Clean Sui Header */}
+      <header className="relative sticky top-0 z-50 glass-effect border-b border-white/10">
+        <div className="container mx-auto container-responsive py-4 sm:py-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <Shield className="w-5 h-5 text-primary-foreground" />
+            <div className="flex items-center gap-4">
+              {/* Sui Droplet Logo */}
+              <div className="w-8 h-8">
+                <svg viewBox="0 0 32 32" className="w-full h-full text-primary fill-current">
+                  <path d="M16 0c8.837 0 16 7.163 16 16s-7.163 16-16 16S0 24.837 0 16 7.163 0 16 0zm0 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2z"/>
+                  <path d="M16 6c5.523 0 10 4.477 10 10s-4.477 10-10 10S6 21.523 6 16 10.477 6 16 6z"/>
+                </svg>
               </div>
               <div>
-                <h1 className="text-xl font-semibold">Sui Wallet Cleaner</h1>
-                <p className="text-sm text-muted-foreground">Secure wallet management</p>
+                <h1 className="heading-small text-foreground">Sui Wallet Manager</h1>
               </div>
             </div>
             <WalletButton />
@@ -33,115 +56,87 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main id="main-content" className="relative container mx-auto container-responsive section-spacing">
         {!account ? (
           <div className="max-w-4xl mx-auto">
-            {/* Hero Section */}
-            <div className="text-center space-y-6 py-12">
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto">
-                <Shield className="w-8 h-8 text-primary" />
-              </div>
-              <div className="space-y-3">
-                <h2 className="text-3xl font-bold tracking-tight">
-                  Secure Your Sui Wallet
+            {/* Clean Hero Section */}
+            <div className="text-center space-y-8 sm:space-y-12 py-12 sm:py-20">
+              <div className="space-y-4 sm:space-y-6">
+                <h2 className="heading-display text-foreground">
+                  Manage your Sui wallet
                 </h2>
-                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                  Scan, analyze, and manage all objects in your wallet including NFTs, coins, and other assets
+                <p className="body-large text-foreground-secondary max-w-2xl mx-auto px-4">
+                  Comprehensive analysis and management tools for your Sui digital assets
                 </p>
               </div>
             </div>
 
-            {/* Features */}
-            <div className="grid md:grid-cols-3 gap-6 mb-12">
-              <Card>
-                <CardHeader>
-                  <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center mb-2">
-                    <Scan className="w-5 h-5 text-green-600 dark:text-green-400" />
-                  </div>
-                  <CardTitle className="text-lg">Comprehensive Scanning</CardTitle>
-                  <CardDescription>
-                    Analyze all objects in your wallet including NFTs, coins, staked assets, and more
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+            {/* Enhanced Feature Grid */}
+            <div className="responsive-grid mb-12 sm:mb-20" role="region" aria-label="Application features">
+              <SpotlightCard className="sui-card-minimal text-center group focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all duration-300 hover:scale-105" spotlightColor="rgba(0, 255, 255, 0.7)">
+                <div tabIndex={0} role="article" aria-labelledby="feature-1" className="p-2">
+                  <h3 id="feature-1" className="heading-small text-foreground mb-4">Asset Analysis</h3>
+                  <p className="body-regular text-foreground-secondary">
+                    Complete overview of all tokens, NFTs, and DeFi positions in your wallet
+                  </p>
+                </div>
+              </SpotlightCard>
 
-              <Card>
-                <CardHeader>
-                  <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex items-center justify-center mb-2">
-                    <Shield className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-                  </div>
-                  <CardTitle className="text-lg">Smart Classification</CardTitle>
-                  <CardDescription>
-                    Automatically identify verified, safe, suspicious, and dangerous objects using advanced analysis
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+              <SpotlightCard className="sui-card-minimal text-center group focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all duration-300 hover:scale-105" spotlightColor="rgba(0, 255, 128, 0.7)">
+                <div tabIndex={0} role="article" aria-labelledby="feature-2" className="p-2">
+                  <h3 id="feature-2" className="heading-small text-foreground mb-4">Security Assessment</h3>
+                  <p className="body-regular text-foreground-secondary">
+                    Risk evaluation and security scoring for all wallet interactions
+                  </p>
+                </div>
+              </SpotlightCard>
 
-              <Card>
-                <CardHeader>
-                  <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center mb-2">
-                    <Settings className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <CardTitle className="text-lg">Bulk Actions</CardTitle>
-                  <CardDescription>
-                    Hide, transfer, or manage multiple objects at once with powerful bulk operations
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+              <SpotlightCard className="sui-card-minimal text-center group focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all duration-300 hover:scale-105" spotlightColor="rgba(128, 0, 255, 0.7)">
+                <div tabIndex={0} role="article" aria-labelledby="feature-3" className="p-2">
+                  <h3 id="feature-3" className="heading-small text-foreground mb-4">Bulk Operations</h3>
+                  <p className="body-regular text-foreground-secondary">
+                    Efficient management tools for organizing and transferring assets
+                  </p>
+                </div>
+              </SpotlightCard>
             </div>
 
-            {/* Security Notice */}
-            <Alert className="mb-8">
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Security Notice:</strong> Always verify transactions before signing. This tool provides analysis 
-                to help identify potential risks, but you should always exercise caution when interacting with unknown assets.
-              </AlertDescription>
-            </Alert>
-
-            {/* Connect CTA */}
-            <div className="text-center">
+            {/* Connect Section */}
+            <div className="text-center space-y-8">
               <WalletButton />
-              <p className="text-sm text-muted-foreground mt-2">
-                Connect your Sui wallet to get started
+              <p className="caption">
+                Connect your Sui wallet to begin
               </p>
             </div>
           </div>
         ) : (
-          <div className="space-y-6">
-            {/* Connected Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold">Wallet Analysis</h2>
-                <p className="text-muted-foreground">
-                  Review and manage all objects in your wallet
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="gap-1">
-                  <Shield className="w-3 h-3" />
-                  Protected
-                </Badge>
-              </div>
+          <div className="space-y-12">
+            {/* Clean Connected Header */}
+            <div className="max-w-4xl mx-auto text-center space-y-6">
+              <h2 className="heading-large text-foreground">Wallet Overview</h2>
+              <p className="body-regular text-foreground-secondary">
+                Review and manage all assets in your connected wallet
+              </p>
             </div>
 
             {/* Objects Grid */}
-            <ObjectGrid objects={objects} isLoading={isLoading} error={error} />
+            <ObjectGrid objects={objects} isLoading={isLoading} error={error} onRetry={() => refetch()} />
           </div>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t bg-card/50 mt-16">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <p>Built for the Sui ecosystem</p>
-            <div className="flex items-center gap-4">
+      {/* Clean Footer */}
+      <footer className="relative border-t border-white/10 mt-12 sm:mt-24">
+        <div className="container mx-auto container-responsive py-8 sm:py-12">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-0">
+            <p className="caption">Built for the Sui ecosystem</p>
+            <div className="flex items-center gap-6 sm:gap-8">
               <a 
                 href="https://sui.io" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="hover:text-primary transition-colors"
+                className="caption hover:accent-text transition-colors touch-target"
+                aria-label="Visit Sui Network official website"
               >
                 Sui Network
               </a>
@@ -149,9 +144,10 @@ export default function Home() {
                 href="https://github.com" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="hover:text-primary transition-colors"
+                className="caption hover:accent-text transition-colors touch-target"
+                aria-label="Visit project repository on GitHub"
               >
-                Open Source
+                GitHub
               </a>
             </div>
           </div>

@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Flame, AlertTriangle, CheckCircle, Skull } from 'lucide-react'
+import { Flame, AlertTriangle, CheckCircle, Skull } from 'lucide-react'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { TransactionService } from '@/services/transactionService'
 
 interface BurnDialogProps {
@@ -16,7 +17,7 @@ interface BurnDialogProps {
   onBurnComplete: () => void
   transactionService: TransactionService
   senderAddress: string
-  onExecuteTransaction: (transaction: any) => Promise<any>
+  onExecuteTransaction: (transaction: unknown) => Promise<unknown>
 }
 
 export default function BurnDialog({
@@ -50,7 +51,7 @@ export default function BurnDialog({
           objects: selectedObjects.map(item => item.object),
           senderAddress,
         },
-        onExecuteTransaction
+        onExecuteTransaction as (tx: unknown) => Promise<unknown>
       )
 
       if (result.success && result.digest) {
@@ -212,7 +213,7 @@ export default function BurnDialog({
           </div>
 
           {/* Progressive Warnings */}
-          <Alert variant="destructive">
+          <Alert variant="destructive" role="alert">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               {confirmationStep === 0 && (
@@ -235,7 +236,7 @@ export default function BurnDialog({
           </Alert>
 
           {error && (
-            <Alert variant="destructive">
+            <Alert variant="destructive" role="alert">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -251,8 +252,9 @@ export default function BurnDialog({
             onClick={handleBurn}
             disabled={isLoading}
             className={confirmationStep >= 1 ? 'bg-red-600 hover:bg-red-700' : ''}
+            aria-describedby="burn-warning"
           >
-            {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {isLoading && <LoadingSpinner size="sm" className="mr-2" />}
             {confirmationContent.buttonText}
           </Button>
         </DialogFooter>

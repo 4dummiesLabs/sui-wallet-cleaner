@@ -47,7 +47,7 @@ export class NFTService {
     
     const type = obj.data.type || ''
     const isCoin = type.startsWith('0x2::coin::Coin')
-    const hasDisplay = obj.data.display && obj.data.display.data
+    const hasDisplay = !!(obj.data.display && obj.data.display.data)
     const isKiosk = type.includes('kiosk')
     const isStakedSui = type.includes('staked_sui')
     
@@ -82,14 +82,21 @@ export class NFTService {
       packageId,
       moduleName,
       digest,
-      owner: typeof owner === 'object' && 'AddressOwner' in owner 
+      owner: typeof owner === 'object' && owner && 'AddressOwner' in owner 
         ? owner.AddressOwner 
         : typeof owner === 'string' 
         ? owner 
         : '',
-      previousTransaction,
-      storageRebate,
-      content,
+      previousTransaction: previousTransaction || undefined,
+      storageRebate: storageRebate || undefined,
+      content: content && content.dataType === 'moveObject' && 'type' in content && 'hasPublicTransfer' in content && 'fields' in content
+        ? {
+            dataType: content.dataType,
+            type: content.type as string,
+            hasPublicTransfer: content.hasPublicTransfer as boolean,
+            fields: content.fields as Record<string, any>
+          }
+        : undefined,
     }
   }
 

@@ -1,7 +1,7 @@
 import { SuiClient } from '@mysten/sui/client'
 import { Transaction } from '@mysten/sui/transactions'
 import { WalletObject, ObjectType, CoinObject, NFTObject } from '@/types/objects'
-import { SuiSignAndExecuteTransactionMethod } from '@mysten/dapp-kit'
+// Type for transaction execution function
 
 export interface TransferOptions {
   objects: WalletObject[]
@@ -30,7 +30,7 @@ export class TransactionService {
 
   async transferObjects(
     options: TransferOptions,
-    signAndExecute: SuiSignAndExecuteTransactionMethod
+    signAndExecute: (transaction: any) => Promise<any>
   ): Promise<TransactionResult> {
     try {
       const tx = new Transaction()
@@ -68,18 +68,14 @@ export class TransactionService {
       tx.setSender(options.senderAddress)
 
       // Execute transaction
-      const result = await signAndExecute(
-        {
-          transaction: tx,
+      const result = await signAndExecute({
+        transaction: tx,
+        requestType: 'WaitForLocalExecution',
+        options: {
+          showEffects: true,
+          showEvents: true,
         },
-        {
-          requestType: 'WaitForLocalExecution',
-          options: {
-            showEffects: true,
-            showEvents: true,
-          },
-        }
-      )
+      })
 
       return {
         success: true,
@@ -97,7 +93,7 @@ export class TransactionService {
 
   async burnObjects(
     options: BurnOptions,
-    signAndExecute: SuiSignAndExecuteTransactionMethod
+    signAndExecute: (transaction: any) => Promise<any>
   ): Promise<TransactionResult> {
     try {
       const tx = new Transaction()
@@ -136,18 +132,14 @@ export class TransactionService {
       tx.setSender(options.senderAddress)
 
       // Execute transaction
-      const result = await signAndExecute(
-        {
-          transaction: tx,
+      const result = await signAndExecute({
+        transaction: tx,
+        requestType: 'WaitForLocalExecution',
+        options: {
+          showEffects: true,
+          showEvents: true,
         },
-        {
-          requestType: 'WaitForLocalExecution',
-          options: {
-            showEffects: true,
-            showEvents: true,
-          },
-        }
-      )
+      })
 
       return {
         success: true,

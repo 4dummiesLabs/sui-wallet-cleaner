@@ -28,15 +28,28 @@ export class ObjectService {
     this.coinMetadataService = new CoinMetadataService(client)
   }
 
-  async fetchWalletObjects(address: string): Promise<WalletObject[]> {
+  async fetchWalletObjects(
+    address: string, 
+    options: {
+      chunkSize?: number
+      maxObjects?: number
+      onProgress?: (loaded: number, total?: number) => void
+    } = {}
+  ): Promise<WalletObject[]> {
+    const { chunkSize = 50, maxObjects, onProgress } = options
     const objects: WalletObject[] = []
     let cursor: string | null | undefined = null
     let hasNextPage = true
+    let totalLoaded = 0
+
+    // First pass to get total count (optional, for progress tracking)
+    let estimatedTotal: number | undefined
 
     while (hasNextPage) {
       const response = await this.client.getOwnedObjects({
         owner: address,
         cursor,
+        limit: chunkSize,
         options: {
           showType: true,
           showOwner: true,
@@ -46,20 +59,92 @@ export class ObjectService {
         },
       })
 
+      // Process objects in chunks
+      const chunkObjects: WalletObject[] = []
       for (const obj of response.data) {
         if (obj.data && !obj.error) {
           const parsedObject = await this.parseObject(obj)
           if (parsedObject) {
-            objects.push(parsedObject)
+            chunkObjects.push(parsedObject)
           }
         }
+        
+        // Check max objects limit
+        if (maxObjects && totalLoaded + chunkObjects.length >= maxObjects) {
+          const remaining = maxObjects - totalLoaded
+          objects.push(...chunkObjects.slice(0, remaining))
+          totalLoaded += remaining
+          onProgress?.(totalLoaded, estimatedTotal)
+          return objects
+        }
+      }
+
+      objects.push(...chunkObjects)
+      totalLoaded += chunkObjects.length
+      
+      // Report progress
+      onProgress?.(totalLoaded, estimatedTotal)
+
+      // Add small delay between chunks for better UX
+      if (response.hasNextPage) {
+        await new Promise(resolve => setTimeout(resolve, 10))
       }
 
       hasNextPage = response.hasNextPage
       cursor = response.nextCursor
+      
+      // Safety check to prevent infinite loops
+      if (totalLoaded > 10000) {
+        console.warn('Stopping object fetch at 10,000 objects to prevent memory issues')
+        break
+      }
     }
 
     return objects
+  }
+
+  // Alternative streaming method for very large wallets
+  async *streamWalletObjects(
+    address: string,
+    chunkSize: number = 50
+  ): AsyncGenerator<WalletObject[], void, unknown> {
+    let cursor: string | null | undefined = null
+    let hasNextPage = true
+
+    while (hasNextPage) {
+      const response = await this.client.getOwnedObjects({
+        owner: address,
+        cursor,
+        limit: chunkSize,
+        options: {
+          showType: true,
+          showOwner: true,
+          showPreviousTransaction: true,
+          showDisplay: true,
+          showContent: true,
+        },
+      })
+
+      const chunkObjects: WalletObject[] = []
+      for (const obj of response.data) {
+        if (obj.data && !obj.error) {
+          const parsedObject = await this.parseObject(obj)
+          if (parsedObject) {
+            chunkObjects.push(parsedObject)
+          }
+        }
+      }
+
+      if (chunkObjects.length > 0) {
+        yield chunkObjects
+      }
+
+      hasNextPage = response.hasNextPage
+      cursor = response.nextCursor
+      
+      // Add small delay between chunks
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
   }
 
   private async parseObject(obj: SuiObjectResponse): Promise<WalletObject | null> {
@@ -117,7 +202,7 @@ export class ObjectService {
     if (!obj.data) return false
     
     const type = obj.data.type || ''
-    const hasDisplay = obj.data.display && obj.data.display.data
+    const hasDisplay = !!(obj.data.display && obj.data.display.data)
     
     return !this.isCoin(type) && 
            !this.isKiosk(type) && 
