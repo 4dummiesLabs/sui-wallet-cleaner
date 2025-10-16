@@ -1,6 +1,6 @@
 'use client'
 
-import { ClassifiedObject, ObjectType, ObjectClassification } from '@/types/objects'
+import { ClassifiedObject, ObjectType, ObjectClassification, CoinObject } from '@/types/objects'
 import ObjectCard from './ObjectCard'
 import TransferDialog from './TransferDialog'
 import BurnDialog from './BurnDialog'
@@ -48,6 +48,15 @@ export default function ObjectGrid({ objects, isLoading, error }: ObjectGridProp
   const filteredObjects = useMemo(() => {
     let filtered = objects
 
+    // Automatically hide coins with 0 balance
+    filtered = filtered.filter(item => {
+      if (item.object.objectType === ObjectType.COIN) {
+        const coin = item.object as CoinObject
+        return Number(coin.balance) > 0
+      }
+      return true
+    })
+
     if (filterType !== 'all') {
       filtered = filtered.filter(item => item.object.objectType === filterType)
     }
@@ -60,18 +69,27 @@ export default function ObjectGrid({ objects, isLoading, error }: ObjectGridProp
   }, [objects, filterType, filterClassification])
 
   const stats = useMemo(() => {
-    const byType = objects.reduce((acc, item) => {
+    // Filter out 0 balance coins from stats as well
+    const visibleObjects = objects.filter(item => {
+      if (item.object.objectType === ObjectType.COIN) {
+        const coin = item.object as CoinObject
+        return Number(coin.balance) > 0
+      }
+      return true
+    })
+
+    const byType = visibleObjects.reduce((acc, item) => {
       acc[item.object.objectType] = (acc[item.object.objectType] || 0) + 1
       return acc
     }, {} as Record<ObjectType, number>)
 
-    const byClassification = objects.reduce((acc, item) => {
+    const byClassification = visibleObjects.reduce((acc, item) => {
       acc[item.classification] = (acc[item.classification] || 0) + 1
       return acc
     }, {} as Record<ObjectClassification, number>)
 
     return {
-      total: objects.length,
+      total: visibleObjects.length,
       byType,
       byClassification,
     }

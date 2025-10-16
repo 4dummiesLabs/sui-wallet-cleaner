@@ -50,18 +50,21 @@ export class TransactionService {
         }
       }
 
-      // Transfer coins
-      for (const coin of coins) {
-        if (Number(coin.balance) > 0) {
-          // For coins, we need to split or transfer the coin object
-          tx.transferObjects([coin.id], options.recipient)
-        }
-      }
+      // Batch all objects together for efficient transfer
+      const allObjectIds = [
+        ...coins.filter(coin => Number(coin.balance) > 0).map(coin => coin.id),
+        ...nfts.map(nft => nft.id),
+        ...others.map(obj => obj.id)
+      ]
 
-      // Transfer NFTs and other objects
-      const objectsToTransfer = [...nfts, ...others].map(obj => obj.id)
-      if (objectsToTransfer.length > 0) {
-        tx.transferObjects(objectsToTransfer, options.recipient)
+      if (allObjectIds.length > 0) {
+        // Split into batches of 100 for safety
+        const BATCH_SIZE = 100
+
+        for (let i = 0; i < allObjectIds.length; i += BATCH_SIZE) {
+          const batch = allObjectIds.slice(i, i + BATCH_SIZE)
+          tx.transferObjects(batch, options.recipient)
+        }
       }
 
       // Set sender
@@ -122,14 +125,21 @@ export class TransactionService {
         }
       }
 
-      // Handle coin burning by transferring to burn address
-      for (const coin of coinsToMergeAndBurn) {
-        tx.transferObjects([coin.id], BURN_ADDRESS)
-      }
+      // Batch all objects together for efficient burning
+      const allObjectIds = [
+        ...coinsToMergeAndBurn.map(coin => coin.id),
+        ...transferableObjects
+      ]
 
-      // Transfer other objects to burn address
-      if (transferableObjects.length > 0) {
-        tx.transferObjects(transferableObjects, BURN_ADDRESS)
+      if (allObjectIds.length > 0) {
+        // Sui supports batching up to ~512 objects per transferObjects call
+        // Split into batches of 100 for safety
+        const BATCH_SIZE = 100
+
+        for (let i = 0; i < allObjectIds.length; i += BATCH_SIZE) {
+          const batch = allObjectIds.slice(i, i + BATCH_SIZE)
+          tx.transferObjects(batch, BURN_ADDRESS)
+        }
       }
 
       // Set sender

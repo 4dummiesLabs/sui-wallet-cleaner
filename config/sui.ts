@@ -1,5 +1,6 @@
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
 import { createNetworkConfig } from '@mysten/dapp-kit'
+import { createSuiClientWithRateLimitHandling } from '@/lib/ratelimiter'
 
 const { networkConfig, useNetworkVariable, useNetworkVariables } = createNetworkConfig({
   mainnet: {
@@ -27,9 +28,8 @@ const { networkConfig, useNetworkVariable, useNetworkVariables } = createNetwork
 
 export { networkConfig, useNetworkVariable, useNetworkVariables }
 
-export const suiClient = new SuiClient({
-  url: getFullnodeUrl('mainnet')
-})
+// High-performance client with automatic rate limit handling and endpoint rotation
+export const suiClient = createSuiClientWithRateLimitHandling()
 
 export const SUPPORTED_NETWORKS = ['mainnet', 'testnet', 'devnet'] as const
 export type Network = typeof SUPPORTED_NETWORKS[number]
