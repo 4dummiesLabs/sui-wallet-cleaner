@@ -1,7 +1,6 @@
 import { SuiClient } from '@mysten/sui/client'
 import { Transaction } from '@mysten/sui/transactions'
 import { WalletObject, ObjectType, CoinObject, NFTObject } from '@/types/objects'
-import { SuiSignAndExecuteTransactionMethod } from '@mysten/dapp-kit'
 
 export interface TransferOptions {
   objects: WalletObject[]
@@ -30,7 +29,7 @@ export class TransactionService {
 
   async transferObjects(
     options: TransferOptions,
-    signAndExecute: SuiSignAndExecuteTransactionMethod
+    signAndExecute: any
   ): Promise<TransactionResult> {
     try {
       const tx = new Transaction()
@@ -100,7 +99,7 @@ export class TransactionService {
 
   async burnObjects(
     options: BurnOptions,
-    signAndExecute: SuiSignAndExecuteTransactionMethod
+    signAndExecute: any
   ): Promise<TransactionResult> {
     try {
       const tx = new Transaction()

@@ -9,6 +9,7 @@ interface ApiError extends Error {
 }
 
 export class SuiClientRateLimitSwitch {
+  [key: string]: any;
   private urls: string[];
   private currentIndex: number = 0;
   private clients: SuiClient[];
@@ -36,7 +37,8 @@ export class SuiClientRateLimitSwitch {
     console.log(`[RateLimitSwitch] Max concurrent requests: ${maxConcurrent}`);
 
     // Create a proxy to forward all method calls
-    return new Proxy(this, {
+    // @ts-expect-error Constructor returns a proxy instead of instance
+    return new Proxy(this as any, {
       get(target, prop: string | symbol) {
         // If the property exists on the wrapper, return it
         if (prop in target) {
@@ -55,7 +57,7 @@ export class SuiClientRateLimitSwitch {
         // If it's a function, wrap it with retry logic AND concurrency control
         return (...args: unknown[]) => {
           return target.limiter(() =>
-            target.executeWithRetry(async (client) => {
+            target.executeWithRetry(async (client: any) => {
               const fn = Reflect.get(client, prop);
               if (typeof fn !== 'function') {
                 throw new Error(`${String(prop)} is not a function on SuiClient`);
@@ -171,7 +173,7 @@ export class SuiClientRateLimitSwitch {
 }
 
 // Factory function to create SuiClient with rate limit handling for mainnet
-export function createSuiClientWithRateLimitHandling(): SuiClient {
+export function createSuiClientWithRateLimitHandling(): any {
   const urls = [
     "https://fullnode.mainnet.sui.io:443",
     "https://mainnet.suiet.app",

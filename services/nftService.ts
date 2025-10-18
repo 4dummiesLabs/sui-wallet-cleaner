@@ -82,14 +82,14 @@ export class NFTService {
       packageId,
       moduleName,
       digest,
-      owner: typeof owner === 'object' && 'AddressOwner' in owner 
+      owner: typeof owner === 'object' && owner !== null && 'AddressOwner' in owner 
         ? owner.AddressOwner 
         : typeof owner === 'string' 
         ? owner 
         : '',
-      previousTransaction,
-      storageRebate,
-      content,
+      previousTransaction: previousTransaction || undefined,
+      storageRebate: storageRebate || undefined,
+      content: content as any || undefined,
     }
   }
 

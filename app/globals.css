@@ -1,12 +1,67 @@
+/* Font Imports - Must be at the top */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700,900&display=swap');
+
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+  font-family: 'TWK Everett';
+  font-weight: 400;
+  font-style: normal;
+  src: url('/fonts/TWKEverett-Regular.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'TWK Everett';
+  font-weight: 500;
+  font-style: normal;
+  src: url('/fonts/TWKEverett-Regular.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'TWK Everett';
+  font-weight: 600;
+  font-style: normal;
+  src: url('/fonts/TWKEverett-Bold.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'TWK Everett';
+  font-weight: 700;
+  font-style: normal;
+  src: url('/fonts/TWKEverett-Bold.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'TWK Everett';
+  font-weight: 800;
+  font-style: normal;
+  src: url('/fonts/TWKEverett-Bold.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'TWK Everett';
+  font-weight: 900;
+  font-style: normal;
+  src: url('/fonts/TWKEverett-Black.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'TWK Everett';
+  font-weight: 300;
+  font-style: normal;
+  src: url('/fonts/TWKEverett-Thin.otf') format('opentype');
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: 'TWK Everett', 'Satoshi', 'Inter', -apple-system, system-ui, sans-serif;
+  --font-heading: 'TWK Everett', -apple-system, system-ui, sans-serif;
+  --font-body: 'Satoshi', 'Inter', -apple-system, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -41,82 +96,214 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  
+  /* Brand Colors */
+  --color-ocean: 1 24 41;
+  --color-aqua: 192 230 255;
+  --color-deep-ocean: 3 15 28;
+  --color-cloud: 255 255 255;
 }
 
 :root {
   --radius: 0.5rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.605 0.175 206.548);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.855 0.119 205.348);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.605 0.175 206.548);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  
+  /* Default Dark Theme with Deep Ocean background */
+  --background: 3 15 28; /* Deep Ocean */
+  --foreground: 255 255 255; /* Cloud */
+  --card: 1 24 41; /* Ocean */
+  --card-foreground: 255 255 255; /* Cloud */
+  --popover: 1 24 41; /* Ocean */
+  --popover-foreground: 255 255 255; /* Cloud */
+  --primary: 192 230 255; /* Aqua */
+  --primary-foreground: 3 15 28; /* Deep Ocean */
+  --secondary: 1 24 41; /* Ocean */
+  --secondary-foreground: 255 255 255; /* Cloud */
+  --muted: 15 35 55; /* Lighter Ocean */
+  --muted-foreground: 148 163 184; /* Muted Cloud */
+  --accent: 192 230 255; /* Aqua */
+  --accent-foreground: 3 15 28; /* Deep Ocean */
+  --destructive: 239 68 68; /* Red */
+  --destructive-foreground: 255 255 255; /* Cloud */
+  --border: 1 24 41 / 50%; /* Ocean with transparency */
+  --input: 1 24 41 / 30%; /* Ocean with transparency */
+  --ring: 192 230 255; /* Aqua */
+  
+  /* Chart colors */
+  --chart-1: 192 230 255; /* Aqua */
+  --chart-2: 255 255 255; /* Cloud */
+  --chart-3: 148 163 184; /* Muted Cloud */
+  --chart-4: 100 116 139; /* Muted Ocean */
+  --chart-5: 1 24 41; /* Ocean */
+  
+  /* Sidebar */
+  --sidebar: 1 24 41; /* Ocean */
+  --sidebar-foreground: 255 255 255; /* Cloud */
+  --sidebar-primary: 192 230 255; /* Aqua */
+  --sidebar-primary-foreground: 3 15 28; /* Deep Ocean */
+  --sidebar-accent: 15 35 55; /* Lighter Ocean */
+  --sidebar-accent-foreground: 255 255 255; /* Cloud */
+  --sidebar-border: 1 24 41 / 50%; /* Ocean with transparency */
+  --sidebar-ring: 192 230 255; /* Aqua */
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.605 0.175 206.548);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.455 0.119 205.348);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.605 0.175 206.548);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+/* Light theme override - but we'll default to dark */
+.light {
+  --background: 255 255 255; /* Cloud */
+  --foreground: 3 15 28; /* Deep Ocean */
+  --card: 255 255 255; /* Cloud */
+  --card-foreground: 3 15 28; /* Deep Ocean */
+  --popover: 255 255 255; /* Cloud */
+  --popover-foreground: 3 15 28; /* Deep Ocean */
+  --primary: 1 24 41; /* Ocean */
+  --primary-foreground: 255 255 255; /* Cloud */
+  --secondary: 192 230 255; /* Aqua */
+  --secondary-foreground: 3 15 28; /* Deep Ocean */
+  --muted: 245 250 255; /* Very light blue */
+  --muted-foreground: 100 116 139; /* Muted Ocean */
+  --accent: 1 24 41; /* Ocean */
+  --accent-foreground: 255 255 255; /* Cloud */
+  --destructive: 220 38 38; /* Dark Red */
+  --destructive-foreground: 255 255 255; /* Cloud */
+  --border: 226 232 240; /* Light border */
+  --input: 226 232 240; /* Light border */
+  --ring: 1 24 41; /* Ocean */
+  
+  /* Chart colors for light mode */
+  --chart-1: 1 24 41; /* Ocean */
+  --chart-2: 192 230 255; /* Aqua */
+  --chart-3: 100 116 139; /* Muted Ocean */
+  --chart-4: 240 248 255; /* Light Aqua */
+  --chart-5: 3 15 28; /* Deep Ocean */
+  
+  /* Sidebar for light mode */
+  --sidebar: 255 255 255; /* Cloud */
+  --sidebar-foreground: 3 15 28; /* Deep Ocean */
+  --sidebar-primary: 1 24 41; /* Ocean */
+  --sidebar-primary-foreground: 255 255 255; /* Cloud */
+  --sidebar-accent: 240 248 255; /* Light Aqua */
+  --sidebar-accent-foreground: 3 15 28; /* Deep Ocean */
+  --sidebar-border: 226 232 240; /* Light border */
+  --sidebar-ring: 1 24 41; /* Ocean */
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  
+  html {
+    @apply bg-deep-ocean;
+  }
+  
   body {
     @apply bg-background text-foreground;
+    font-family: 'Satoshi', 'Inter', -apple-system, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: rgb(3 15 28); /* Deep Ocean */
+    color: rgb(255 255 255); /* Cloud */
+    min-height: 100vh;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'TWK Everett', -apple-system, system-ui, sans-serif;
+    font-weight: 700;
+    color: rgb(255 255 255); /* Cloud */
+  }
+  
+  h1 {
+    font-size: 3rem;
+    font-weight: 700;
+  }
+  
+  h2 {
+    font-size: 2.5rem;
+    font-weight: 700;
+  }
+  
+  h3 {
+    font-size: 2rem;
+    font-weight: 700;
+  }
+  
+  button {
+    font-family: 'TWK Everett', -apple-system, system-ui, sans-serif;
+    font-weight: 700;
+  }
+  
+  /* Ensure cards have proper dark theme */
+  .card {
+    background-color: rgb(1 24 41); /* Ocean */
+    border: 1px solid rgba(1, 24, 41, 0.5);
+  }
+  
+  /* Primary button style */
+  .btn-primary {
+    background-color: rgb(192 230 255); /* Aqua */
+    color: rgb(3 15 28); /* Deep Ocean */
+  }
+  
+  .btn-primary:hover {
+    background-color: rgba(192, 230, 255, 0.9);
+  }
+}
+
+/* Custom utility classes for brand colors */
+@layer utilities {
+  .text-ocean {
+    color: rgb(1 24 41);
+  }
+  
+  .text-aqua {
+    color: rgb(192 230 255);
+  }
+  
+  .text-deep-ocean {
+    color: rgb(3 15 28);
+  }
+  
+  .text-cloud {
+    color: rgb(255 255 255);
+  }
+  
+  .bg-ocean {
+    background-color: rgb(1 24 41);
+  }
+  
+  .bg-aqua {
+    background-color: rgb(192 230 255);
+  }
+  
+  .bg-deep-ocean {
+    background-color: rgb(3 15 28);
+  }
+  
+  .bg-cloud {
+    background-color: rgb(255 255 255);
+  }
+  
+  .border-ocean {
+    border-color: rgb(1 24 41);
+  }
+  
+  .border-aqua {
+    border-color: rgb(192 230 255);
+  }
+  
+  .border-deep-ocean {
+    border-color: rgb(3 15 28);
+  }
+  
+  .border-cloud {
+    border-color: rgb(255 255 255);
+  }
+  
+  /* Gradient utilities */
+  .gradient-ocean-aqua {
+    background: linear-gradient(135deg, rgb(1 24 41) 0%, rgb(192 230 255) 100%);
+  }
+  
+  .gradient-deep-ocean {
+    background: linear-gradient(180deg, rgb(3 15 28) 0%, rgb(1 24 41) 100%);
   }
 }

@@ -2,14 +2,15 @@
 
 import { ClassifiedObject, ObjectType, ObjectClassification, CoinObject } from '@/types/objects'
 import ObjectCard from './ObjectCard'
-import TransferDialog from './TransferDialog'
 import BurnDialog from './BurnDialog'
+import CommunityDialog from './CommunityDialog'
+import SubmitForReviewDialog from './SubmitForReviewDialog'
 import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Filter, Trash2, Send, EyeOff, Coins, Image, Shield, AlertTriangle } from 'lucide-react'
+import { Filter, Trash2, EyeOff, Coins, Image, Shield, AlertTriangle, Users, Upload } from 'lucide-react'
 import { TransactionService } from '@/services/transactionService'
 import { useCurrentAccount, useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
 
@@ -24,8 +25,9 @@ export default function ObjectGrid({ objects, isLoading, error }: ObjectGridProp
   const [filterType, setFilterType] = useState<ObjectType | 'all'>('all')
   const [filterClassification, setFilterClassification] = useState<ObjectClassification | 'all'>('all')
   const [hiddenObjects, setHiddenObjects] = useState<Set<string>>(new Set())
-  const [showTransferDialog, setShowTransferDialog] = useState(false)
   const [showBurnDialog, setShowBurnDialog] = useState(false)
+  const [showCommunityDialog, setShowCommunityDialog] = useState(false)
+  const [showSubmitDialog, setShowSubmitDialog] = useState(false)
   
   // Sui hooks
   const account = useCurrentAccount()
@@ -286,11 +288,15 @@ export default function ObjectGrid({ objects, isLoading, error }: ObjectGridProp
             </span>
             <Button variant="outline" size="sm" onClick={handleBulkHide}>
               <EyeOff className="w-4 h-4 mr-1" />
-              Hide Selected
+              Hide
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowTransferDialog(true)}>
-              <Send className="w-4 h-4 mr-1" />
-              Transfer
+            <Button variant="outline" size="sm" onClick={() => setShowSubmitDialog(true)}>
+              <Upload className="w-4 h-4 mr-1" />
+              Submit for Review
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowCommunityDialog(true)}>
+              <Users className="w-4 h-4 mr-1" />
+              View Votes
             </Button>
             <Button variant="destructive" size="sm" onClick={() => setShowBurnDialog(true)}>
               <Trash2 className="w-4 h-4 mr-1" />
@@ -326,21 +332,24 @@ export default function ObjectGrid({ objects, isLoading, error }: ObjectGridProp
         ))}
       </div>
 
-      {/* Transfer Dialog */}
+      {/* Submit for Review Dialog */}
       {account && (
-        <TransferDialog
-          open={showTransferDialog}
-          onOpenChange={setShowTransferDialog}
+        <SubmitForReviewDialog
+          open={showSubmitDialog}
+          onOpenChange={setShowSubmitDialog}
           selectedObjects={objects.filter(obj => selectedObjects.has(obj.object.id))}
-          onTransferComplete={() => {
+          onSubmitComplete={() => {
             setSelectedObjects(new Set())
-            // Optionally refresh the objects list here
           }}
-          transactionService={transactionService}
-          senderAddress={account.address}
-          onExecuteTransaction={executeTransaction}
         />
       )}
+
+      {/* Community Dialog */}
+      <CommunityDialog
+        open={showCommunityDialog}
+        onOpenChange={setShowCommunityDialog}
+        selectedObjects={objects.filter(obj => selectedObjects.has(obj.object.id))}
+      />
 
       {/* Burn Dialog */}
       {account && (

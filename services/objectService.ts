@@ -117,17 +117,105 @@ export class ObjectService {
     if (!obj.data) return false
     
     const type = obj.data.type || ''
-    const hasDisplay = obj.data.display && obj.data.display.data
+    const display = obj.data.display?.data
     
-    return !this.isCoin(type) && 
-           !this.isKiosk(type) && 
-           !this.isStakedSui(type) && 
-           (hasDisplay || this.isPotentialNFT(type))
+    // Skip known non-NFT types
+    if (this.isCoin(type) || this.isKiosk(type) || this.isStakedSui(type)) {
+      return false
+    }
+    
+    // Skip system packages and modules
+    if (type.startsWith('0x2::') || type.startsWith('0x3::') || type.startsWith('0x1::')) {
+      return false
+    }
+    
+    // SuiVision-style NFT detection:
+    // 1. Must have display with image_url (primary indicator)
+    if (display && display.image_url) {
+      return true
+    }
+    
+    // 2. Check for known NFT patterns in type
+    if (this.isKnownNFTType(type)) {
+      return true
+    }
+    
+    // 3. Check if it has NFT-like display properties even without image_url
+    if (display && (display.name || display.description)) {
+      // Has display metadata but no image - could be text-based NFT or metadata object
+      // Check type for NFT indicators
+      return this.isPotentialNFT(type)
+    }
+    
+    // 4. Check content structure for NFT-like fields
+    if (obj.data.content && 'fields' in obj.data.content) {
+      const fields = (obj.data.content as any).fields
+      // Look for common NFT fields
+      if (fields.image_url || fields.img_url || fields.image || 
+          fields.metadata || fields.attributes || fields.properties) {
+        return true
+      }
+    }
+    
+    return false
   }
 
   private isPotentialNFT(type: string): boolean {
-    const nftPatterns = ['nft', 'collectible', 'artwork', 'token', 'card', 'hero', 'avatar']
-    return nftPatterns.some(pattern => type.toLowerCase().includes(pattern))
+    // Common NFT-related keywords in type names
+    const nftPatterns = [
+      'nft', 'collectible', 'artwork', 'token', 'card', 
+      'hero', 'avatar', 'badge', 'ticket', 'pass', 'item',
+      'character', 'pet', 'warrior', 'creature', 'asset'
+    ]
+    const lowerType = type.toLowerCase()
+    return nftPatterns.some(pattern => lowerType.includes(pattern))
+  }
+  
+  private isKnownNFTType(type: string): boolean {
+    // Known Sui NFT collection patterns (similar to SuiVision)
+    const knownNFTPatterns = [
+      // Popular Sui NFT projects
+      '::suifrens::',
+      '::capy::',
+      '::prime_machin::',
+      '::fuddies::',
+      '::egg::',
+      '::cosmocadia::',
+      '::souffl::',
+      '::bluemove::',
+      '::keepsake::',
+      '::clutchy::',
+      '::tocen::',
+      '::typus_nft::',
+      '::aart::',
+      '::studio_mirai::',
+      '::suilend::',
+      
+      // Common NFT module names
+      '::collection::',
+      '::nft::',
+      '::mint::',
+      '::display::',
+      
+      // Marketplace/Protocol NFTs
+      '::originbyte::',
+      '::ob_kiosk::',
+      '::tradeport::',
+      '::hyperspace::',
+      
+      // Gaming NFTs
+      '::game_nft::',
+      '::game_item::',
+      '::player_item::',
+      
+      // Domain names (treated as NFTs in SuiVision)
+      '::suins::',
+      '::domain::',
+      '::name_service::',
+    ]
+    
+    const lowerType = type.toLowerCase()
+    return knownNFTPatterns.some(pattern => lowerType.includes(pattern))
   }
 
   private async parseCoinObject(base: any, content: any, type: string): Promise<CoinObject> {
@@ -238,20 +326,41 @@ export class ObjectService {
       }
     } else if (obj.objectType === ObjectType.NFT) {
       const nft = obj as NFTObject
+      
+      // Check for verified collections first (similar to SuiVision)
       if (this.isVerifiedNFT(nft.packageId)) {
         classification = ObjectClassification.VERIFIED
-        classificationReason = 'From verified collection'
-      } else if (this.hasScamIndicators(nft)) {
+        classificationReason = 'Verified NFT collection'
+        riskScore = 0
+      } 
+      // Check if it's from a known NFT marketplace or protocol
+      else if (this.isFromTrustedProtocol(nft.packageId, obj.type)) {
+        classification = ObjectClassification.SAFE
+        classificationReason = 'From trusted NFT protocol'
+        riskScore = 10
+      }
+      // Check for scam indicators
+      else if (this.hasScamIndicators(nft)) {
         classification = ObjectClassification.DANGER
         classificationReason = 'Suspicious patterns detected'
         riskScore = 80
-      } else if (this.isDubious(nft)) {
+      } 
+      // Check if metadata is incomplete or suspicious
+      else if (this.isDubious(nft)) {
         classification = ObjectClassification.WARNING
-        classificationReason = 'Unknown origin or incomplete metadata'
+        classificationReason = 'Incomplete metadata or unknown origin'
         riskScore = 40
-      } else {
+      } 
+      // NFTs with proper display metadata are generally safe
+      else if (nft.imageUrl && nft.name) {
         classification = ObjectClassification.SAFE
-        classificationReason = 'Standard NFT'
+        classificationReason = 'Standard NFT with complete metadata'
+        riskScore = 20
+      }
+      else {
+        classification = ObjectClassification.UNCLASSIFIED
+        classificationReason = 'NFT requires manual review'
+        riskScore = 30
       }
     } else if (obj.objectType === ObjectType.STAKED_SUI) {
       classification = ObjectClassification.VERIFIED
@@ -286,9 +395,114 @@ export class ObjectService {
   }
 
   private isVerifiedNFT(packageId: string): boolean {
-    return verifiedPackages.some(pkg => 
+    // Check against verified packages list
+    const isInVerifiedList = verifiedPackages.some(pkg => 
       pkg.packageId.toLowerCase() === packageId.toLowerCase()
     )
+    
+    if (isInVerifiedList) return true
+    
+    // Additional known verified NFT packages (similar to SuiVision)
+    const additionalVerifiedNFTs = [
+      // Capy
+      '0x7f6c7d279d5f15aaf7835e0f34b2a95e5731bc86e2b3c5f1ea85c5a83e7f96f2',
+      '0x06b79116e8d9b94ba0a8525e42dcfe776d5e20e1fa769347f0e730bb0e8bac2e',
+      
+      // SuiNS (Sui Name Service)
+      '0x22fa05f21b1ad71442491220bb9338f7b7095fe35000ef88d5400d28523bdd93',
+      '0xd22b24490e0bae52676651b4f56660a5ff8022a2576e0089f79b3c88d44e08f0',
+      
+      // Cosmocadia
+      '0x8f74a7d632191e29956df3843404f22d27bd84d92cca1b1abde621d033098769',
+      
+      // Egg
+      '0xbeed5831d4c041fc9d3a7c96a1d23f67587c7af616e20334ecfac2ec0dd8f3f7',
+      
+      // Bluemove
+      '0xb24b6789e088b876afabca733bed2299fbc9e2d6369be4d1acfa17d8145454d9',
+      
+      // Keepsake
+      '0x0e01aa52aa26c24c5ac0c603a0f65dc95de93047dd08c566ab9e4ba55797c95e',
+      
+      // Studio Mirai  
+      '0xa66152f384c0b2e99677e4fb2211f9f595c6a879b11c18c6d588dbba52e982f3',
+      
+      // Typus NFT
+      '0x8b299390a981fdc5c79a27c62e9c850d9b7ba9335db88bbf50f782f072e279e1',
+      
+      // Suilend
+      '0xf95b06141ed4a174f239417323bde3f209b972f5930d8521ea38a52aff3a6ddf',
+      
+      // AART Digital
+      '0x329d54be94e1d3667ca6fb89c30f52e986dc5eebf9b9a2e973e3a4e889c59c84',
+      
+      // Clutchy
+      '0x2af3abf59bb6f896c2ef1c9a595233b09a36408db9dd24a7c3f69c972b0f0cf2',
+      
+      // Tocen
+      '0x18f15b93db3bc6a2b6a3720d477740b37f759db50e61c41dc396e2e75b369cc3',
+      
+      // Souffl3
+      '0x80d7de9c4a56194087e0ba0bf59492aa8e6a5ee881606226930827085ddf2332',
+      
+      // OriginByte Protocol NFTs
+      '0xbc3df36be17f27ac98e3c839b2589db8475fa07b20657b08e8891e3aaf5ee5f9',
+      '0x95a441d389b07437d00dd07e0b6f05f513d7659b13fd7c5d3923c7d9d847199b',
+      
+      // DoubleUp
+      '0xd4a537f5e6980284de6344e8c9cbb93f892e0c6b0d672b1f5e8c7e088cec5e04',
+    ]
+    
+    return additionalVerifiedNFTs.some(verified => 
+      packageId.toLowerCase().startsWith(verified.toLowerCase())
+    )
+  }
+
+  private isFromTrustedProtocol(packageId: string, type: string): boolean {
+    // Known NFT marketplace and protocol packages
+    const trustedProtocols = [
+      // OriginByte
+      '0xbc3df36be17f27ac98e3c839b2589db8475fa07b20657b08e8891e3aaf5ee5f9',
+      '0x95a441d389b07437d00dd07e0b6f05f513d7659b13fd7c5d3923c7d9d847199b',
+      
+      // Bluemove
+      '0xb24b6789e088b876afabca733bed2299fbc9e2d6369be4d1acfa17d8145454d9',
+      
+      // Souffl3
+      '0x80d7de9c4a56194087e0ba0bf59492aa8e6a5ee881606226930827085ddf2332',
+      
+      // Tradeport
+      '0xceab84acf6bf70f503c3b0627acaff6b3f84cee0f2d7ed53d00fa6c2a168d14f',
+      
+      // Hyperspace
+      '0x2d6d5720c0328c1fa871262c3dfe893dc31ba122af06ed2179aac46e06e5a511',
+      
+      // Clutchy
+      '0x5b960c3def74e086819086e12e26a5ce5c4224e5e8a1370dc76292e42a2010b5',
+      
+      // Keepsake
+      '0xb42dbb7413b79394e1a0175af6ae22b69ca3e610d87ef09b86e2fd8e4a8cb206',
+    ]
+    
+    const lowerPackage = packageId.toLowerCase()
+    const lowerType = type.toLowerCase()
+    
+    // Check if package matches any trusted protocol
+    if (trustedProtocols.some(protocol => lowerPackage.startsWith(protocol.toLowerCase()))) {
+      return true
+    }
+    
+    // Check for protocol patterns in type
+    if (lowerType.includes('::originbyte::') || 
+        lowerType.includes('::ob_kiosk::') ||
+        lowerType.includes('::bluemove::') ||
+        lowerType.includes('::souffl::') ||
+        lowerType.includes('::tradeport::') ||
+        lowerType.includes('::hyperspace::')) {
+      return true
+    }
+    
+    return false
   }
 
   private hasScamIndicators(nft: NFTObject): boolean {
