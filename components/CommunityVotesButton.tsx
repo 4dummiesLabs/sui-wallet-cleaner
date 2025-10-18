@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Users, ThumbsUp, ThumbsDown, Clock, AlertCircle, Loader2 } from 'lucide-react'
-import { useCurrentAccount, useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
+import { useCurrentAccount, useSuiClient, useSignTransaction } from '@mysten/dapp-kit'
 import { VotingService, ReviewRequest } from '@/services/votingService'
 import { formatDistanceToNow } from 'date-fns'
 import { cn } from '@/lib/utils'
@@ -15,7 +15,7 @@ import { toast } from 'sonner'
 export default function CommunityVotesButton() {
   const account = useCurrentAccount()
   const client = useSuiClient()
-  const { mutate: signAndExecute } = useSignAndExecuteTransaction()
+  const { mutate: signTransaction } = useSignTransaction()
   
   const [open, setOpen] = useState(false)
   const [reviews, setReviews] = useState<ReviewRequest[]>([])
@@ -82,10 +82,10 @@ export default function CommunityVotesButton() {
     try {
       const review = reviews.find(r => r.id === reviewId)
       
-      // Create a promise wrapper for signAndExecute
+      // Create a promise wrapper for signTransaction (for sponsored transactions)
       const executeTransaction = (args: any) => {
         return new Promise((resolve, reject) => {
-          signAndExecute(args, {
+          signTransaction(args, {
             onSuccess: (result) => resolve(result),
             onError: (error) => reject(error),
           })
@@ -94,11 +94,11 @@ export default function CommunityVotesButton() {
       
       if (review?.hasVoted && review.userVote !== undefined) {
         // User is changing their vote
-        await votingService.changeVote(reviewId, isUpvote, executeTransaction)
+        await votingService.changeVote(reviewId, isUpvote, executeTransaction, account.address)
         toast.success('Vote updated successfully')
       } else {
         // New vote
-        await votingService.castVote(reviewId, isUpvote, executeTransaction)
+        await votingService.castVote(reviewId, isUpvote, executeTransaction, account.address)
         toast.success('Vote cast successfully')
       }
       

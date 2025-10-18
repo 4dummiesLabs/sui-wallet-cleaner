@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Upload, Loader2, AlertCircle, CheckCircle, Ban } from 'lucide-react'
 import { ClassifiedObject } from '@/types/objects'
-import { useCurrentAccount, useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
+import { useCurrentAccount, useSuiClient, useSignTransaction } from '@mysten/dapp-kit'
 import { VotingService } from '@/services/votingService'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -30,7 +30,7 @@ export default function SubmitForReviewDialog({
 }: SubmitForReviewDialogProps) {
   const account = useCurrentAccount()
   const client = useSuiClient()
-  const { mutate: signAndExecute } = useSignAndExecuteTransaction()
+  const { mutate: signTransaction } = useSignTransaction()
   
   const [submitting, setSubmitting] = useState(false)
   const [descriptions, setDescriptions] = useState<Record<string, string>>({})
@@ -143,10 +143,10 @@ export default function SubmitForReviewDialog({
       
       console.log('Submitting review with:', { objectName, imageUrl })
       
-      // Create a promise wrapper for signAndExecute
+      // Create a promise wrapper for signTransaction (for sponsored transactions)
       const executeTransaction = (args: any) => {
         return new Promise((resolve, reject) => {
-          signAndExecute(args, {
+          signTransaction(args, {
             onSuccess: (result) => resolve(result),
             onError: (error) => reject(error),
           })
@@ -159,7 +159,8 @@ export default function SubmitForReviewDialog({
         objectName,
         metadata,
         imageUrl,
-        executeTransaction
+        executeTransaction,
+        account.address
       )
       
       setSubmittedIds(prev => new Set([...prev, objectId]))

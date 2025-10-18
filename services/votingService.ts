@@ -1,6 +1,12 @@
 import { SuiClient, SuiTransactionBlockResponse } from '@mysten/sui/client'
 import { Transaction } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/sui/bcs'
+import { GasStationError } from '@3mate/gas-station-sdk'
+import { toHex, fromHex, toBase64 } from '@mysten/sui/utils'
+
+// Gas Station Configuration - Always enabled
+const GAS_STATION_API_KEY = process.env.NEXT_PUBLIC_GAS_STATION_API_KEY || ''
+const GAS_STATION_NETWORK = (process.env.NEXT_PUBLIC_GAS_STATION_NETWORK || 'mainnet') as 'mainnet' | 'testnet'
 
 export interface ReviewRequest {
   id: string
@@ -44,10 +50,11 @@ export class VotingService {
     objectName: string,
     metadata: string,
     imageUrl: string,
-    executeTransaction: (args: any) => Promise<any>
+    signTransaction: (args: any) => Promise<any>,
+    senderAddress: string
   ): Promise<any> {
     const tx = new Transaction()
-    
+
     console.log('Submitting to blockchain:', {
       objectId,
       objectType,
@@ -57,7 +64,10 @@ export class VotingService {
       packageId: this.packageId,
       registryId: this.registryId
     })
-    
+
+    // Set sender
+    tx.setSender(senderAddress)
+
     // Get the current timestamp
     tx.moveCall({
       target: `${this.packageId}::voting::submit_for_review`,
@@ -73,25 +83,18 @@ export class VotingService {
     })
 
     try {
-      const result = await executeTransaction({
-        transaction: tx,
-        options: {
-          showEffects: true,
-          showEvents: true,
-        },
-      })
-      
+      const result = await this.executeSponsoredTransaction(tx, senderAddress, signTransaction)
       console.log('Submission successful:', result)
       return result
     } catch (error: any) {
       console.error('Submission error:', error)
-      
+
       // Check for duplicate submission error
-      if (error.message?.includes('E_ALREADY_SUBMITTED') || 
+      if (error.message?.includes('E_ALREADY_SUBMITTED') ||
           error.message?.includes('abort code: 4')) {
         throw new Error('This object has already been submitted for review')
       }
-      
+
       throw error
     }
   }
@@ -102,10 +105,13 @@ export class VotingService {
   async castVote(
     reviewId: string,
     isUpvote: boolean,
-    executeTransaction: (args: any) => Promise<any>
+    signTransaction: (args: any) => Promise<any>,
+    senderAddress: string
   ): Promise<any> {
     const tx = new Transaction()
-    
+
+    tx.setSender(senderAddress)
+
     tx.moveCall({
       target: `${this.packageId}::voting::cast_vote`,
       arguments: [
@@ -116,13 +122,7 @@ export class VotingService {
       ],
     })
 
-    return await executeTransaction({
-      transaction: tx,
-      options: {
-        showEffects: true,
-        showEvents: true,
-      },
-    })
+    return await this.executeSponsoredTransaction(tx, senderAddress, signTransaction)
   }
 
   /**
@@ -131,10 +131,13 @@ export class VotingService {
   async changeVote(
     reviewId: string,
     newIsUpvote: boolean,
-    executeTransaction: (args: any) => Promise<any>
+    signTransaction: (args: any) => Promise<any>,
+    senderAddress: string
   ): Promise<any> {
     const tx = new Transaction()
-    
+
+    tx.setSender(senderAddress)
+
     tx.moveCall({
       target: `${this.packageId}::voting::change_vote`,
       arguments: [
@@ -145,13 +148,7 @@ export class VotingService {
       ],
     })
 
-    return await executeTransaction({
-      transaction: tx,
-      options: {
-        showEffects: true,
-        showEvents: true,
-      },
-    })
+    return await this.executeSponsoredTransaction(tx, senderAddress, signTransaction)
   }
 
   /**
@@ -573,5 +570,92 @@ export class VotingService {
       },
       onMessage: callback,
     })
+  }
+
+  /**
+   * Execute a sponsored transaction via Gas Station
+   */
+  private async executeSponsoredTransaction(
+    tx: Transaction,
+    senderAddress: string,
+    signTransaction: any
+  ): Promise<any> {
+    try {
+      console.log('Sponsoring voting transaction with Gas Station...')
+
+      // Build transaction WITHOUT gas payment for sponsorship
+      const txBytes = await tx.build({
+        client: this.client,
+        onlyTransactionKind: true,
+      })
+
+      const rawTxBytesHex = toHex(txBytes)
+
+      // Request sponsorship from Gas Station via proxy
+      const response = await fetch('/api/gas-station/sponsor', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          apiKey: GAS_STATION_API_KEY,
+          rawTxBytesHex,
+          sender: senderAddress,
+          network: GAS_STATION_NETWORK,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new GasStationError(
+          errorData.error || errorData.message || `Sponsorship failed (${response.status})`,
+          response.status,
+          errorData
+        )
+      }
+
+      const sponsorResponse = await response.json()
+      console.log('✅ Voting transaction sponsored!')
+
+      const { txBytesHex, sponsorSignature } = sponsorResponse
+      const sponsoredBytes = fromHex(txBytesHex)
+
+      // Sign with wallet
+      console.log('Requesting user signature for voting transaction...')
+      const userSignature = await new Promise<any>((resolve, reject) => {
+        signTransaction(
+          { transaction: toBase64(sponsoredBytes) },
+          {
+            onSuccess: (signature) => {
+              console.log('✅ User signature received for voting')
+              resolve(signature)
+            },
+            onError: (error) => {
+              console.error('❌ User signature failed for voting:', error)
+              reject(error)
+            },
+          }
+        )
+      })
+
+      console.log('Executing sponsored voting transaction...')
+
+      // Execute transaction with both signatures
+      const result = await this.client.executeTransactionBlock({
+        transactionBlock: sponsoredBytes,
+        signature: [userSignature.signature, sponsorSignature],
+        options: {
+          showEffects: true,
+          showEvents: true,
+        },
+      })
+
+      console.log('✅ Voting transaction executed successfully!', result.digest)
+
+      return result
+    } catch (error) {
+      console.error('❌ Sponsored voting transaction failed:', error)
+      throw error
+    }
   }
 }
