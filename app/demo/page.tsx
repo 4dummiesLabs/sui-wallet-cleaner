@@ -16,15 +16,14 @@ const mockObjects: ClassifiedObject[] = [
       owner: '0xabcdef1234567890abcdef1234567890abcdef12',
       objectType: ObjectType.NFT,
       name: 'Sui Punk #1337',
-      description: 'A rare Sui Punk NFT',
+      description: 'A rare Sui Punk NFT - Legendary Collection',
       imageUrl: 'https://via.placeholder.com/150/4B5563/C0E6FF?text=NFT',
-      metadata: {
-        collection: 'Sui Punks',
-        rarity: 'Legendary'
-      }
+      packageId: '0x1234567890abcdef1234567890abcdef12345678',
+      moduleName: 'sui_punks',
+      type: 'NFT',
+      digest: '0x1234567890abcdef1234567890abcdef12345678'
     },
     classification: ObjectClassification.VERIFIED,
-    riskFactors: []
   },
   {
     object: {
@@ -38,7 +37,6 @@ const mockObjects: ClassifiedObject[] = [
       iconUrl: 'https://via.placeholder.com/40/4B5563/C0E6FF?text=SUI'
     },
     classification: ObjectClassification.VERIFIED,
-    riskFactors: []
   },
   {
     object: {
@@ -50,7 +48,6 @@ const mockObjects: ClassifiedObject[] = [
       imageUrl: 'https://via.placeholder.com/150/8B5563/FFE6C0?text=?',
     },
     classification: ObjectClassification.WARNING,
-    riskFactors: ['Unverified collection', 'No trading history']
   },
   {
     object: {
@@ -64,7 +61,6 @@ const mockObjects: ClassifiedObject[] = [
       iconUrl: 'https://via.placeholder.com/40/FF5563/FFFFFF?text=!'
     },
     classification: ObjectClassification.DANGER,
-    riskFactors: ['Known scam token', 'Malicious contract']
   },
   {
     object: {
@@ -77,7 +73,6 @@ const mockObjects: ClassifiedObject[] = [
       decimals: 9,
     },
     classification: ObjectClassification.SAFE,
-    riskFactors: []
   },
   {
     object: {
@@ -89,7 +84,6 @@ const mockObjects: ClassifiedObject[] = [
       imageUrl: 'https://via.placeholder.com/150/3B82F6/FFFFFF?text=CAT',
     },
     classification: ObjectClassification.SAFE,
-    riskFactors: []
   },
   {
     object: {
@@ -100,7 +94,6 @@ const mockObjects: ClassifiedObject[] = [
       description: 'A powerful sword from Sui Quest',
     },
     classification: ObjectClassification.UNCLASSIFIED,
-    riskFactors: []
   },
   {
     object: {
@@ -111,7 +104,6 @@ const mockObjects: ClassifiedObject[] = [
       description: 'Your personal trading kiosk',
     },
     classification: ObjectClassification.SAFE,
-    riskFactors: []
   }
 ]
 
@@ -138,7 +130,6 @@ export default function DemoPage() {
           ObjectClassification.DANGER,
           ObjectClassification.UNCLASSIFIED
         ][Math.floor(Math.random() * 5)],
-        riskFactors: []
       }
       setObjects([...objects, newObject])
       setIsLoading(false)

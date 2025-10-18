@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Filter, Trash2, EyeOff, Coins, Image, Shield, AlertTriangle, Users, Upload } from 'lucide-react'
 import { TransactionService } from '@/services/transactionService'
-import { useCurrentAccount, useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
+import { useCurrentAccount, useSuiClient, useSignTransaction } from '@mysten/dapp-kit'
 
 interface ObjectGridProps {
   objects: ClassifiedObject[]
@@ -32,15 +32,15 @@ export default function ObjectGrid({ objects, isLoading, error }: ObjectGridProp
   // Sui hooks
   const account = useCurrentAccount()
   const client = useSuiClient()
-  const { mutate: signAndExecute } = useSignAndExecuteTransaction()
-  
+  const { mutate: signTransaction } = useSignTransaction()
+
   // Transaction service
   const transactionService = useMemo(() => new TransactionService(client), [client])
 
-  // Wrapper for signAndExecute to return a Promise
+  // Wrapper for signTransaction to return a Promise (used for sponsored transactions)
   const executeTransaction = (args: any) => {
     return new Promise((resolve, reject) => {
-      signAndExecute(args, {
+      signTransaction(args, {
         onSuccess: (result) => resolve(result),
         onError: (error) => reject(error),
       })
