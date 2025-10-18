@@ -169,14 +169,14 @@ export default function CommunityVotesButton() {
           setOpen(true)
           loadReviews() // Refresh when opening
         }}
-        className="gap-2 relative"
+        className="gap-2 relative pr-3"
       >
         <Users className="w-4 h-4" />
-        Community Votes
+        <span>Community Votes</span>
         {pendingCount > 0 && (
-          <Badge 
-            variant="destructive" 
-            className="ml-1 px-1.5 py-0 h-5 text-xs absolute -top-2 -right-2"
+          <Badge
+            variant="destructive"
+            className="ml-2 px-2 py-0.5 h-5 text-[11px] font-semibold min-w-[20px] flex items-center justify-center"
           >
             {pendingCount}
           </Badge>

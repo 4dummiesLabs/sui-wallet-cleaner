@@ -3,14 +3,30 @@
 import WalletButton from '@/components/WalletButton'
 import CommunityVotesButton from '@/components/CommunityVotesButton'
 import ObjectGrid from '@/components/ObjectGrid'
+import LoadingProgress from '@/components/LoadingProgress'
 import { useWalletObjects } from '@/hooks/useObjects'
 import { useCurrentAccount } from '@mysten/dapp-kit'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Scan, Shield, Settings } from 'lucide-react'
+import { useState, useEffect } from 'react'
 
 export default function Home() {
   const account = useCurrentAccount()
-  const { data: objects = [], isLoading, error } = useWalletObjects()
+  const { data: objects = [], isLoading, error, refetch } = useWalletObjects()
+  const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null)
+
+  // Listen for progress updates
+  useEffect(() => {
+    const handleProgress = (event: CustomEvent) => {
+      setProgress(event.detail)
+    }
+
+    window.addEventListener('fetch-progress' as any, handleProgress)
+
+    return () => {
+      window.removeEventListener('fetch-progress' as any, handleProgress)
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-deep-ocean">
@@ -98,7 +114,11 @@ export default function Home() {
             </div>
 
             {/* Objects Grid */}
-            <ObjectGrid objects={objects} isLoading={isLoading} error={error} />
+            {isLoading && progress ? (
+              <LoadingProgress loaded={progress.loaded} total={progress.total} />
+            ) : (
+              <ObjectGrid objects={objects} isLoading={isLoading} error={error} onRefresh={() => refetch()} />
+            )}
           </div>
         )}
       </main>

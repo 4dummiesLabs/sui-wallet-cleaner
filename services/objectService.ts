@@ -28,15 +28,84 @@ export class ObjectService {
     this.coinMetadataService = new CoinMetadataService(client)
   }
 
-  async fetchWalletObjects(address: string): Promise<WalletObject[]> {
+  async fetchWalletObjects(
+    address: string,
+    onProgress?: (loaded: number, total: number) => void
+  ): Promise<WalletObject[]> {
     const objects: WalletObject[] = []
     let cursor: string | null | undefined = null
     let hasNextPage = true
 
+    // First pass: Collect all object IDs quickly
+    const allObjectIds: string[] = []
     while (hasNextPage) {
       const response = await this.client.getOwnedObjects({
         owner: address,
         cursor,
+        options: {
+          showType: true,
+        },
+      })
+
+      allObjectIds.push(...response.data.map(obj => obj.data?.objectId).filter(Boolean) as string[])
+
+      hasNextPage = response.hasNextPage
+      cursor = response.nextCursor
+    }
+
+    const totalObjects = allObjectIds.length
+    console.log(`📦 Found ${totalObjects} objects to fetch`)
+
+    // Second pass: Fetch objects in parallel batches
+    const BATCH_SIZE = 50 // Objects per batch
+    const CONCURRENT_BATCHES = 10 // Process 10 batches simultaneously
+
+    let processedCount = 0
+
+    for (let i = 0; i < allObjectIds.length; i += BATCH_SIZE * CONCURRENT_BATCHES) {
+      // Create batches
+      const batches: string[][] = []
+      for (let j = 0; j < CONCURRENT_BATCHES; j++) {
+        const startIdx = i + (j * BATCH_SIZE)
+        if (startIdx >= allObjectIds.length) break
+
+        const batch = allObjectIds.slice(startIdx, startIdx + BATCH_SIZE)
+        if (batch.length > 0) {
+          batches.push(batch)
+        }
+      }
+
+      // Process all batches in parallel
+      const batchResults = await Promise.allSettled(
+        batches.map(batch => this.fetchObjectBatch(batch))
+      )
+
+      // Collect results
+      for (const result of batchResults) {
+        if (result.status === 'fulfilled') {
+          objects.push(...result.value)
+          processedCount += result.value.length
+        } else {
+          console.error('Batch fetch failed:', result.reason)
+        }
+      }
+
+      // Report progress
+      if (onProgress) {
+        onProgress(processedCount, totalObjects)
+      }
+
+      console.log(`⏳ Progress: ${processedCount}/${totalObjects} objects (${Math.round(processedCount / totalObjects * 100)}%)`)
+    }
+
+    console.log(`✅ Fetched ${objects.length} objects`)
+    return objects
+  }
+
+  private async fetchObjectBatch(objectIds: string[]): Promise<WalletObject[]> {
+    try {
+      const response = await this.client.multiGetObjects({
+        ids: objectIds,
         options: {
           showType: true,
           showOwner: true,
@@ -46,7 +115,8 @@ export class ObjectService {
         },
       })
 
-      for (const obj of response.data) {
+      const objects: WalletObject[] = []
+      for (const obj of response) {
         if (obj.data && !obj.error) {
           const parsedObject = await this.parseObject(obj)
           if (parsedObject) {
@@ -55,11 +125,11 @@ export class ObjectService {
         }
       }
 
-      hasNextPage = response.hasNextPage
-      cursor = response.nextCursor
+      return objects
+    } catch (error) {
+      console.error('Error fetching batch:', error)
+      return []
     }
-
-    return objects
   }
 
   private async parseObject(obj: SuiObjectResponse): Promise<WalletObject | null> {

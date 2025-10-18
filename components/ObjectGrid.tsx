@@ -18,9 +18,10 @@ interface ObjectGridProps {
   objects: ClassifiedObject[]
   isLoading: boolean
   error: Error | null
+  onRefresh?: () => void
 }
 
-export default function ObjectGrid({ objects, isLoading, error }: ObjectGridProps) {
+export default function ObjectGrid({ objects, isLoading, error, onRefresh }: ObjectGridProps) {
   const [selectedObjects, setSelectedObjects] = useState<Set<string>>(new Set())
   const [filterType, setFilterType] = useState<ObjectType | 'all'>('all')
   const [filterClassification, setFilterClassification] = useState<ObjectClassification | 'all'>('all')
@@ -359,7 +360,10 @@ export default function ObjectGrid({ objects, isLoading, error }: ObjectGridProp
           selectedObjects={objects.filter(obj => selectedObjects.has(obj.object.id))}
           onBurnComplete={() => {
             setSelectedObjects(new Set())
-            // Optionally refresh the objects list here
+            // Refresh the objects list from cache (objects are already removed from cache)
+            if (onRefresh) {
+              setTimeout(() => onRefresh(), 500)
+            }
           }}
           transactionService={transactionService}
           senderAddress={account.address}

@@ -3,6 +3,7 @@ import { Transaction } from '@mysten/sui/transactions'
 import { WalletObject, ObjectType, CoinObject, NFTObject } from '@/types/objects'
 import { suiSponsorship, GasStationError } from '@3mate/gas-station-sdk'
 import { toHex, fromHex, toBase64 } from '@mysten/sui/utils'
+import { cacheService } from './cacheService'
 
 // Gas Station Configuration - Always enabled
 const GAS_STATION_API_KEY = process.env.NEXT_PUBLIC_GAS_STATION_API_KEY || ''
@@ -87,7 +88,15 @@ export class TransactionService {
       tx.setSender(options.senderAddress)
 
       // Always use sponsored transactions via Gas Station
-      return await this.executeSponsoredTransaction(tx, options.senderAddress, signAndExecute)
+      const result = await this.executeSponsoredTransaction(tx, options.senderAddress, signAndExecute)
+
+      // If successful, invalidate cache for these objects
+      if (result.success) {
+        await cacheService.removeObjectsFromCache(options.senderAddress, allObjectIds)
+        console.log('🗑️ Removed transferred objects from cache')
+      }
+
+      return result
     } catch (error) {
       console.error('Transfer failed:', error)
       return {
@@ -145,7 +154,15 @@ export class TransactionService {
       tx.setSender(options.senderAddress)
 
       // Always use sponsored transactions via Gas Station
-      return await this.executeSponsoredTransaction(tx, options.senderAddress, signAndExecute)
+      const result = await this.executeSponsoredTransaction(tx, options.senderAddress, signAndExecute)
+
+      // If successful, invalidate cache for these objects
+      if (result.success) {
+        await cacheService.removeObjectsFromCache(options.senderAddress, allObjectIds)
+        console.log('🗑️ Removed burned objects from cache')
+      }
+
+      return result
     } catch (error) {
       console.error('Burn failed:', error)
       return {
