@@ -622,21 +622,8 @@ export class VotingService {
 
       // Sign with wallet
       console.log('Requesting user signature for voting transaction...')
-      const userSignature = await new Promise<any>((resolve, reject) => {
-        signTransaction(
-          { transaction: toBase64(sponsoredBytes) },
-          {
-            onSuccess: (signature) => {
-              console.log('✅ User signature received for voting')
-              resolve(signature)
-            },
-            onError: (error) => {
-              console.error('❌ User signature failed for voting:', error)
-              reject(error)
-            },
-          }
-        )
-      })
+      const userSignature = await signTransaction({ transaction: toBase64(sponsoredBytes) })
+      console.log('✅ User signature received for voting:', userSignature)
 
       console.log('Executing sponsored voting transaction...')
 

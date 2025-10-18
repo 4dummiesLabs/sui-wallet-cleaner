@@ -247,21 +247,8 @@ Original error: ${sponsorError.message}`
 
       // Sign with wallet
       console.log('Requesting user signature...')
-      const userSignature = await new Promise<any>((resolve, reject) => {
-        signTransaction(
-          { transaction: toBase64(sponsoredBytes) },
-          {
-            onSuccess: (signature) => {
-              console.log('✅ User signature received:', signature)
-              resolve(signature)
-            },
-            onError: (error) => {
-              console.error('❌ User signature failed:', error)
-              reject(error)
-            },
-          }
-        )
-      })
+      const userSignature = await signTransaction({ transaction: toBase64(sponsoredBytes) })
+      console.log('✅ User signature received:', userSignature)
 
       console.log('Executing sponsored transaction...')
       console.log('Sponsored bytes length:', sponsoredBytes.length)
