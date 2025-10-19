@@ -48,17 +48,98 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
     })
   }
 
-  const filteredObjects = useMemo(() => {
-    let filtered = objects
+  // Group coins by type and NFTs by collection
+  const groupedObjects = useMemo(() => {
+    const coinGroups = new Map<string, ClassifiedObject[]>()
+    const nftGroups = new Map<string, ClassifiedObject[]>()
+    const others: ClassifiedObject[] = []
 
-    // Automatically hide coins with 0 balance
-    filtered = filtered.filter(item => {
+    // Separate and group objects
+    objects.forEach(item => {
       if (item.object.objectType === ObjectType.COIN) {
         const coin = item.object as CoinObject
-        return Number(coin.balance) > 0
+        // Skip 0 balance coins
+        if (Number(coin.balance) > 0) {
+          const key = coin.coinType
+          if (!coinGroups.has(key)) {
+            coinGroups.set(key, [])
+          }
+          coinGroups.get(key)!.push(item)
+        }
+      } else if (item.object.objectType === ObjectType.NFT) {
+        const nft = item.object as NFTObject
+        const key = nft.packageId // Group by package/collection
+        if (!nftGroups.has(key)) {
+          nftGroups.set(key, [])
+        }
+        nftGroups.get(key)!.push(item)
+      } else {
+        others.push(item)
       }
-      return true
     })
+
+    // Merge grouped coins into single objects with combined balances
+    const mergedCoins: ClassifiedObject[] = []
+    coinGroups.forEach((group, coinType) => {
+      if (group.length === 0) return
+
+      // Use the first coin as the base
+      const baseCoin = group[0].object as CoinObject
+
+      // Sum up all balances
+      const totalBalance = group.reduce((sum, item) => {
+        return sum + BigInt((item.object as CoinObject).balance)
+      }, BigInt(0))
+
+      // Create merged coin object
+      const mergedCoin: CoinObject = {
+        ...baseCoin,
+        balance: totalBalance.toString(),
+        id: `merged_coin_${coinType}`, // Special ID for merged coins
+      }
+
+      // Create merged classified object
+      const mergedItem: ClassifiedObject = {
+        ...group[0],
+        object: mergedCoin,
+        // Store the original object IDs for selection
+        groupedObjectIds: group.map(item => item.object.id),
+      }
+
+      mergedCoins.push(mergedItem)
+    })
+
+    // Merge grouped NFTs - keep first NFT as representative with count
+    const mergedNFTs: ClassifiedObject[] = []
+    nftGroups.forEach((group, packageId) => {
+      if (group.length === 0) return
+
+      // Use the first NFT as the base
+      const baseNFT = group[0].object as NFTObject
+
+      // Create merged NFT object (keeping first NFT's data)
+      const mergedNFT: NFTObject = {
+        ...baseNFT,
+        id: `merged_nft_${packageId}`, // Special ID for merged NFTs
+        name: baseNFT.name || `${baseNFT.moduleName} Collection`,
+      }
+
+      // Create merged classified object
+      const mergedItem: ClassifiedObject = {
+        ...group[0],
+        object: mergedNFT,
+        // Store the original object IDs for selection
+        groupedObjectIds: group.map(item => item.object.id),
+      }
+
+      mergedNFTs.push(mergedItem)
+    })
+
+    return [...mergedCoins, ...mergedNFTs, ...others]
+  }, [objects])
+
+  const filteredObjects = useMemo(() => {
+    let filtered = groupedObjects
 
     if (filterType !== 'all') {
       filtered = filtered.filter(item => item.object.objectType === filterType)
@@ -69,7 +150,7 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
     }
 
     return filtered
-  }, [objects, filterType, filterClassification])
+  }, [groupedObjects, filterType, filterClassification])
 
   const stats = useMemo(() => {
     // Filter out 0 balance coins from stats as well
@@ -98,23 +179,45 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
     }
   }, [objects])
 
-  const handleSelectObject = (objectId: string, selected: boolean) => {
+  const handleSelectObject = (objectId: string, selected: boolean, groupedIds?: string[]) => {
     setSelectedObjects(prev => {
       const newSet = new Set(prev)
-      if (selected) {
-        newSet.add(objectId)
+
+      // If this is a grouped coin, select/deselect all grouped objects
+      if (groupedIds && groupedIds.length > 0) {
+        if (selected) {
+          groupedIds.forEach(id => newSet.add(id))
+        } else {
+          groupedIds.forEach(id => newSet.delete(id))
+        }
       } else {
-        newSet.delete(objectId)
+        // Single object selection
+        if (selected) {
+          newSet.add(objectId)
+        } else {
+          newSet.delete(objectId)
+        }
       }
+
       return newSet
     })
   }
 
   const handleSelectAll = () => {
-    if (selectedObjects.size === filteredObjects.length) {
+    // Collect all actual object IDs (including grouped ones)
+    const allObjectIds: string[] = []
+    filteredObjects.forEach(item => {
+      if (item.groupedObjectIds && item.groupedObjectIds.length > 0) {
+        allObjectIds.push(...item.groupedObjectIds)
+      } else {
+        allObjectIds.push(item.object.id)
+      }
+    })
+
+    if (selectedObjects.size === allObjectIds.length) {
       setSelectedObjects(new Set())
     } else {
-      setSelectedObjects(new Set(filteredObjects.map(item => item.object.id)))
+      setSelectedObjects(new Set(allObjectIds))
     }
   }
 
@@ -326,9 +429,14 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
           <ObjectCard
             key={item.object.id}
             item={{ ...item, isHidden: hiddenObjects.has(item.object.id) }}
-            isSelected={selectedObjects.has(item.object.id)}
-            onSelect={(selected) => handleSelectObject(item.object.id, selected)}
+            isSelected={
+              item.groupedObjectIds
+                ? item.groupedObjectIds.some(id => selectedObjects.has(id))
+                : selectedObjects.has(item.object.id)
+            }
+            onSelect={(selected) => handleSelectObject(item.object.id, selected, item.groupedObjectIds)}
             onToggleHide={handleToggleHide}
+            totalOfType={item.groupedObjectIds?.length}
           />
         ))}
       </div>

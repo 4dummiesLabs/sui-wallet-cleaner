@@ -68,6 +68,7 @@ export interface ClassifiedObject<T extends WalletObject = WalletObject> {
   classificationReason?: string
   riskScore?: number
   isHidden?: boolean
+  groupedObjectIds?: string[] // For grouped coins - contains all original object IDs
 }
 
 export interface ObjectStats {

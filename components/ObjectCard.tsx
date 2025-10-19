@@ -13,9 +13,10 @@ interface ObjectCardProps {
   isSelected: boolean
   onSelect: (selected: boolean) => void
   onToggleHide?: (id: string) => void
+  totalOfType?: number
 }
 
-export default function ObjectCard({ item, isSelected, onSelect, onToggleHide }: ObjectCardProps) {
+export default function ObjectCard({ item, isSelected, onSelect, onToggleHide, totalOfType }: ObjectCardProps) {
   const [imageError, setImageError] = useState(false)
   const [coinImageError, setCoinImageError] = useState(false)
   const [isHidden, setIsHidden] = useState(item.isHidden || false)
@@ -74,8 +75,15 @@ export default function ObjectCard({ item, isSelected, onSelect, onToggleHide }:
               <Coins className="w-8 h-8 text-primary" />
             )}
           </div>
-          <div className="text-center space-y-1">
-            <p className="font-semibold text-lg">{coin.symbol || 'Unknown'}</p>
+          <div className="text-center space-y-1 w-full">
+            <div className="flex items-center justify-center gap-2">
+              <p className="font-semibold text-lg">{coin.symbol || 'Unknown'}</p>
+              {totalOfType && totalOfType > 1 && (
+                <Badge variant="secondary" className="text-xs px-2 py-0">
+                  {totalOfType} objects
+                </Badge>
+              )}
+            </div>
             <p className="text-2xl font-bold">{formattedBalance}</p>
             <p className="text-xs text-muted-foreground">{coin.name}</p>
             {coin.priceUsd && (
@@ -93,7 +101,7 @@ export default function ObjectCard({ item, isSelected, onSelect, onToggleHide }:
 
     if (item.object.objectType === ObjectType.NFT) {
       const nft = item.object as NFTObject
-      
+
       return (
         <div className="space-y-3">
           <div className="relative aspect-square bg-muted rounded-lg overflow-hidden">
@@ -110,9 +118,22 @@ export default function ObjectCard({ item, isSelected, onSelect, onToggleHide }:
                 <Image className="w-12 h-12 text-muted-foreground" />
               </div>
             )}
+            {/* Show collection count badge */}
+            {totalOfType && totalOfType > 1 && (
+              <div className="absolute top-2 right-2">
+                <Badge variant="secondary" className="text-xs px-2 py-1 bg-black/70 backdrop-blur-sm">
+                  {totalOfType} NFTs
+                </Badge>
+              </div>
+            )}
           </div>
           <div className="space-y-1">
             <p className="font-semibold truncate">{nft.name || 'Unnamed NFT'}</p>
+            {totalOfType && totalOfType > 1 && (
+              <p className="text-xs text-muted-foreground">
+                {nft.moduleName} Collection
+              </p>
+            )}
             {nft.description && (
               <p className="text-xs text-muted-foreground line-clamp-2">{nft.description}</p>
             )}
