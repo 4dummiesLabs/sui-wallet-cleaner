@@ -179,19 +179,33 @@ export class VotingService {
         query: {
           MoveEventType: `${this.packageId}::voting::VoteCast`,
         },
+        order: 'ascending', // Process votes chronologically to get latest counts
       })
 
       // Build vote count map from events
       const voteCounts: Record<string, { up: number; down: number; voters: Set<string> }> = {}
       
+      console.log('Processing', voteEvents.data.length, 'vote events')
       for (const event of voteEvents.data) {
         const voteData = event.parsedJson as any
         if (!voteCounts[voteData.review_id]) {
           voteCounts[voteData.review_id] = { up: 0, down: 0, voters: new Set() }
         }
-        // Use the latest vote counts from the event
-        voteCounts[voteData.review_id].up = parseInt(voteData.new_up_votes)
-        voteCounts[voteData.review_id].down = parseInt(voteData.new_down_votes)
+        // Use the latest vote counts from the event (these are cumulative totals)
+        const newUp = parseInt(voteData.new_up_votes) || 0
+        const newDown = parseInt(voteData.new_down_votes) || 0
+        
+        console.log(`Vote event for review ${voteData.review_id}:`, {
+          voter: voteData.voter,
+          isUpvote: voteData.is_upvote,
+          newUpVotes: newUp,
+          newDownVotes: newDown,
+          previousUp: voteCounts[voteData.review_id].up,
+          previousDown: voteCounts[voteData.review_id].down
+        })
+        
+        voteCounts[voteData.review_id].up = newUp
+        voteCounts[voteData.review_id].down = newDown
         voteCounts[voteData.review_id].voters.add(voteData.voter)
       }
 
@@ -338,6 +352,15 @@ export class VotingService {
           objectName = `${objectType} #${eventData.object_id.slice(-4)}`
         }
         
+        const finalVotesUp = voteCounts[eventData.review_id]?.up || 0
+        const finalVotesDown = voteCounts[eventData.review_id]?.down || 0
+        
+        console.log(`Final vote counts for review ${eventData.review_id}:`, {
+          votesUp: finalVotesUp,
+          votesDown: finalVotesDown,
+          totalVoters: voteCounts[eventData.review_id]?.voters.size || 0
+        })
+        
         const review: ReviewRequest = {
           id: eventData.review_id,
           objectId: eventData.object_id,
@@ -345,8 +368,8 @@ export class VotingService {
           objectName,
           submitter: eventData.submitter,
           submissionTime: parseInt(eventData.timestamp),
-          votesUp: voteCounts[eventData.review_id]?.up || 0,
-          votesDown: voteCounts[eventData.review_id]?.down || 0,
+          votesUp: finalVotesUp,
+          votesDown: finalVotesDown,
           metadata,
           imageUrl,
           hasVoted: userAddress ? voteCounts[eventData.review_id]?.voters.has(userAddress) || false : false,

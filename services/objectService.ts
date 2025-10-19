@@ -28,6 +28,87 @@ export class ObjectService {
     this.coinMetadataService = new CoinMetadataService(client)
   }
 
+  /**
+   * Fetch wallet objects page by page (for progressive loading)
+   */
+  async fetchWalletObjectsPage(
+    address: string,
+    pageSize: number = 100,
+    cursor?: string | null
+  ): Promise<{
+    objects: WalletObject[]
+    nextCursor: string | null
+    hasMore: boolean
+    totalFetched: number
+  }> {
+    const objects: WalletObject[] = []
+    let currentCursor = cursor
+    let objectsFetched = 0
+    
+    // Fetch object IDs until we have enough for a page
+    const objectIds: string[] = []
+    let hasNextPage = true
+    
+    while (objectIds.length < pageSize && hasNextPage) {
+      const response = await this.client.getOwnedObjects({
+        owner: address,
+        cursor: currentCursor,
+        options: {
+          showType: true,
+        },
+        limit: Math.min(50, pageSize - objectIds.length) // Fetch in chunks of 50 max
+      })
+      
+      const ids = response.data.map(obj => obj.data?.objectId).filter(Boolean) as string[]
+      objectIds.push(...ids)
+      
+      hasNextPage = response.hasNextPage
+      currentCursor = response.nextCursor
+      
+      // If we've collected enough IDs for a page, stop
+      if (objectIds.length >= pageSize) {
+        break
+      }
+    }
+    
+    // Fetch detailed data for the collected IDs
+    if (objectIds.length > 0) {
+      const BATCH_SIZE = 50
+      const CONCURRENT_BATCHES = 2 // Less aggressive for page-by-page loading
+      
+      for (let i = 0; i < objectIds.length; i += BATCH_SIZE * CONCURRENT_BATCHES) {
+        const batches: string[][] = []
+        for (let j = 0; j < CONCURRENT_BATCHES; j++) {
+          const startIdx = i + (j * BATCH_SIZE)
+          if (startIdx >= objectIds.length) break
+          
+          const batch = objectIds.slice(startIdx, Math.min(startIdx + BATCH_SIZE, objectIds.length))
+          if (batch.length > 0) {
+            batches.push(batch)
+          }
+        }
+        
+        const batchResults = await Promise.allSettled(
+          batches.map(batch => this.fetchObjectBatch(batch))
+        )
+        
+        for (const result of batchResults) {
+          if (result.status === 'fulfilled') {
+            objects.push(...result.value)
+            objectsFetched += result.value.length
+          }
+        }
+      }
+    }
+    
+    return {
+      objects,
+      nextCursor: currentCursor || null,
+      hasMore: hasNextPage,
+      totalFetched: objectsFetched
+    }
+  }
+
   async fetchWalletObjects(
     address: string,
     onProgress?: (loaded: number, total: number) => void
