@@ -5,6 +5,7 @@ import ObjectCard from './ObjectCard'
 import BurnDialog from './BurnDialog'
 import CommunityDialog from './CommunityDialog'
 import SubmitForReviewDialog from './SubmitForReviewDialog'
+import QuantitySelectorDialog from './QuantitySelectorDialog'
 import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -29,6 +30,12 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
   const [showBurnDialog, setShowBurnDialog] = useState(false)
   const [showCommunityDialog, setShowCommunityDialog] = useState(false)
   const [showSubmitDialog, setShowSubmitDialog] = useState(false)
+  const [quantityDialog, setQuantityDialog] = useState<{
+    open: boolean
+    itemName: string
+    totalCount: number
+    groupedIds: string[]
+  } | null>(null)
   
   // Sui hooks
   const account = useCurrentAccount()
@@ -179,11 +186,22 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
     }
   }, [objects])
 
-  const handleSelectObject = (objectId: string, selected: boolean, groupedIds?: string[]) => {
+  const handleSelectObject = (objectId: string, selected: boolean, groupedIds?: string[], itemName?: string) => {
+    // If this is a grouped item with more than 1 object, show quantity selector
+    if (selected && groupedIds && groupedIds.length > 1) {
+      setQuantityDialog({
+        open: true,
+        itemName: itemName || 'items',
+        totalCount: groupedIds.length,
+        groupedIds: groupedIds,
+      })
+      return
+    }
+
     setSelectedObjects(prev => {
       const newSet = new Set(prev)
 
-      // If this is a grouped coin, select/deselect all grouped objects
+      // If this is a grouped item, select/deselect all grouped objects
       if (groupedIds && groupedIds.length > 0) {
         if (selected) {
           groupedIds.forEach(id => newSet.add(id))
@@ -201,6 +219,21 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
 
       return newSet
     })
+  }
+
+  const handleQuantityConfirm = (quantity: number) => {
+    if (!quantityDialog) return
+
+    const { groupedIds } = quantityDialog
+
+    setSelectedObjects(prev => {
+      const newSet = new Set(prev)
+      // Add the first 'quantity' items from the grouped IDs
+      groupedIds.slice(0, quantity).forEach(id => newSet.add(id))
+      return newSet
+    })
+
+    setQuantityDialog(null)
   }
 
   const handleSelectAll = () => {
@@ -434,7 +467,14 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
                 ? item.groupedObjectIds.some(id => selectedObjects.has(id))
                 : selectedObjects.has(item.object.id)
             }
-            onSelect={(selected) => handleSelectObject(item.object.id, selected, item.groupedObjectIds)}
+            onSelect={(selected) => {
+              const itemName = item.object.objectType === ObjectType.COIN
+                ? (item.object as CoinObject).symbol || 'coins'
+                : item.object.objectType === ObjectType.NFT
+                ? 'NFTs'
+                : 'items'
+              handleSelectObject(item.object.id, selected, item.groupedObjectIds, itemName)
+            }}
             onToggleHide={handleToggleHide}
             totalOfType={item.groupedObjectIds?.length}
           />
@@ -450,6 +490,19 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
           onSubmitComplete={() => {
             setSelectedObjects(new Set())
           }}
+        />
+      )}
+
+      {/* Quantity Selector Dialog */}
+      {quantityDialog && (
+        <QuantitySelectorDialog
+          open={quantityDialog.open}
+          onOpenChange={(open) => {
+            if (!open) setQuantityDialog(null)
+          }}
+          itemName={quantityDialog.itemName}
+          totalCount={quantityDialog.totalCount}
+          onConfirm={handleQuantityConfirm}
         />
       )}
 
