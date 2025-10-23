@@ -28,94 +28,22 @@ export class ObjectService {
     this.coinMetadataService = new CoinMetadataService(client)
   }
 
-  /**
-   * Fetch wallet objects page by page (for progressive loading)
-   */
-  async fetchWalletObjectsPage(
-    address: string,
-    pageSize: number = 100,
-    cursor?: string | null
-  ): Promise<{
-    objects: WalletObject[]
-    nextCursor: string | null
-    hasMore: boolean
-    totalFetched: number
-  }> {
-    const objects: WalletObject[] = []
-    let currentCursor = cursor
-    let objectsFetched = 0
-    
-    // Fetch object IDs until we have enough for a page
-    const objectIds: string[] = []
-    let hasNextPage = true
-    
-    while (objectIds.length < pageSize && hasNextPage) {
-      const response = await this.client.getOwnedObjects({
-        owner: address,
-        cursor: currentCursor,
-        options: {
-          showType: true,
-        },
-        limit: Math.min(50, pageSize - objectIds.length) // Fetch in chunks of 50 max
-      })
-      
-      const ids = response.data.map(obj => obj.data?.objectId).filter(Boolean) as string[]
-      objectIds.push(...ids)
-      
-      hasNextPage = response.hasNextPage
-      currentCursor = response.nextCursor
-      
-      // If we've collected enough IDs for a page, stop
-      if (objectIds.length >= pageSize) {
-        break
-      }
-    }
-    
-    // Fetch detailed data for the collected IDs
-    if (objectIds.length > 0) {
-      const BATCH_SIZE = 50
-      const CONCURRENT_BATCHES = 2 // Less aggressive for page-by-page loading
-      
-      for (let i = 0; i < objectIds.length; i += BATCH_SIZE * CONCURRENT_BATCHES) {
-        const batches: string[][] = []
-        for (let j = 0; j < CONCURRENT_BATCHES; j++) {
-          const startIdx = i + (j * BATCH_SIZE)
-          if (startIdx >= objectIds.length) break
-          
-          const batch = objectIds.slice(startIdx, Math.min(startIdx + BATCH_SIZE, objectIds.length))
-          if (batch.length > 0) {
-            batches.push(batch)
-          }
-        }
-        
-        const batchResults = await Promise.allSettled(
-          batches.map(batch => this.fetchObjectBatch(batch))
-        )
-        
-        for (const result of batchResults) {
-          if (result.status === 'fulfilled') {
-            objects.push(...result.value)
-            objectsFetched += result.value.length
-          }
-        }
-      }
-    }
-    
-    return {
-      objects,
-      nextCursor: currentCursor || null,
-      hasMore: hasNextPage,
-      totalFetched: objectsFetched
-    }
-  }
-
   async fetchWalletObjects(
-    address: string,
-    onProgress?: (loaded: number, total: number) => void
+    address: string, 
+    options: {
+      chunkSize?: number
+      maxObjects?: number
+      onProgress?: (loaded: number, total?: number) => void
+    } = {}
   ): Promise<WalletObject[]> {
+    const { chunkSize = 50, maxObjects, onProgress } = options
     const objects: WalletObject[] = []
     let cursor: string | null | undefined = null
     let hasNextPage = true
+    let totalLoaded = 0
+
+    // First pass to get total count (optional, for progress tracking)
+    let estimatedTotal: number | undefined
 
     // First pass: Collect all object IDs quickly
     const allObjectIds: string[] = []
@@ -123,6 +51,7 @@ export class ObjectService {
       const response = await this.client.getOwnedObjects({
         owner: address,
         cursor,
+        limit: chunkSize,
         options: {
           showType: true,
         },
@@ -196,20 +125,89 @@ export class ObjectService {
         },
       })
 
-      const objects: WalletObject[] = []
-      for (const obj of response) {
+      // Process objects in chunks
+      const chunkObjects: WalletObject[] = []
+      for (const obj of response.data) {
         if (obj.data && !obj.error) {
           const parsedObject = await this.parseObject(obj)
           if (parsedObject) {
-            objects.push(parsedObject)
+            chunkObjects.push(parsedObject)
+          }
+        }
+        
+        // Check max objects limit
+        if (maxObjects && totalLoaded + chunkObjects.length >= maxObjects) {
+          const remaining = maxObjects - totalLoaded
+          objects.push(...chunkObjects.slice(0, remaining))
+          totalLoaded += remaining
+          onProgress?.(totalLoaded, estimatedTotal)
+          return objects
+        }
+      }
+
+      objects.push(...chunkObjects)
+      totalLoaded += chunkObjects.length
+      
+      // Report progress
+      onProgress?.(totalLoaded, estimatedTotal)
+
+      // Add small delay between chunks for better UX
+      if (response.hasNextPage) {
+        await new Promise(resolve => setTimeout(resolve, 10))
+      }
+
+      hasNextPage = response.hasNextPage
+      cursor = response.nextCursor
+      
+      // Safety check to prevent infinite loops
+      if (totalLoaded > 10000) {
+        console.warn('Stopping object fetch at 10,000 objects to prevent memory issues')
+        break
+      }
+    }
+  }
+
+  // Alternative streaming method for very large wallets
+  async *streamWalletObjects(
+    address: string,
+    chunkSize: number = 50
+  ): AsyncGenerator<WalletObject[], void, unknown> {
+    let cursor: string | null | undefined = null
+    let hasNextPage = true
+
+    while (hasNextPage) {
+      const response = await this.client.getOwnedObjects({
+        owner: address,
+        cursor,
+        limit: chunkSize,
+        options: {
+          showType: true,
+          showOwner: true,
+          showPreviousTransaction: true,
+          showDisplay: true,
+          showContent: true,
+        },
+      })
+
+      const chunkObjects: WalletObject[] = []
+      for (const obj of response.data) {
+        if (obj.data && !obj.error) {
+          const parsedObject = await this.parseObject(obj)
+          if (parsedObject) {
+            chunkObjects.push(parsedObject)
           }
         }
       }
 
-      return objects
-    } catch (error) {
-      console.error('Error fetching batch:', error)
-      return []
+      if (chunkObjects.length > 0) {
+        yield chunkObjects
+      }
+
+      hasNextPage = response.hasNextPage
+      cursor = response.nextCursor
+      
+      // Add small delay between chunks
+      await new Promise(resolve => setTimeout(resolve, 10))
     }
   }
 
@@ -268,45 +266,7 @@ export class ObjectService {
     if (!obj.data) return false
     
     const type = obj.data.type || ''
-    const display = obj.data.display?.data
-    
-    // Skip known non-NFT types
-    if (this.isCoin(type) || this.isKiosk(type) || this.isStakedSui(type)) {
-      return false
-    }
-    
-    // Skip system packages and modules
-    if (type.startsWith('0x2::') || type.startsWith('0x3::') || type.startsWith('0x1::')) {
-      return false
-    }
-    
-    // SuiVision-style NFT detection:
-    // 1. Must have display with image_url (primary indicator)
-    if (display && display.image_url) {
-      return true
-    }
-    
-    // 2. Check for known NFT patterns in type
-    if (this.isKnownNFTType(type)) {
-      return true
-    }
-    
-    // 3. Check if it has NFT-like display properties even without image_url
-    if (display && (display.name || display.description)) {
-      // Has display metadata but no image - could be text-based NFT or metadata object
-      // Check type for NFT indicators
-      return this.isPotentialNFT(type)
-    }
-    
-    // 4. Check content structure for NFT-like fields
-    if (obj.data.content && 'fields' in obj.data.content) {
-      const fields = (obj.data.content as any).fields
-      // Look for common NFT fields
-      if (fields.image_url || fields.img_url || fields.image || 
-          fields.metadata || fields.attributes || fields.properties) {
-        return true
-      }
-    }
+    const hasDisplay = !!(obj.data.display && obj.data.display.data)
     
     return false
   }

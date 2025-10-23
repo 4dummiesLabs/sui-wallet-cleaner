@@ -2,16 +2,18 @@
 
 import { ClassifiedObject, ObjectType, ObjectClassification, CoinObject } from '@/types/objects'
 import ObjectCard from './ObjectCard'
+import VirtualizedObjectGrid from './VirtualizedObjectGrid'
+import TransferDialog from './TransferDialog'
 import BurnDialog from './BurnDialog'
-import CommunityDialog from './CommunityDialog'
-import SubmitForReviewDialog from './SubmitForReviewDialog'
-import QuantitySelectorDialog from './QuantitySelectorDialog'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect, useReducer } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Filter, Trash2, Coins, Image, Shield, AlertTriangle, Users, Upload } from 'lucide-react'
+import { Filter, Trash2, Send, EyeOff, Coins, Image, Shield, AlertTriangle } from 'lucide-react'
+import { LoadingSpinnerCentered } from '@/components/ui/loading-spinner'
+import { ErrorState } from '@/components/ui/error-state'
+import { StatsCard, StatsGrid } from '@/components/StatsCard'
 import { TransactionService } from '@/services/transactionService'
 import { useCurrentAccount, useSuiClient, useSignTransaction } from '@mysten/dapp-kit'
 
@@ -19,23 +21,88 @@ interface ObjectGridProps {
   objects: ClassifiedObject[]
   isLoading: boolean
   error: Error | null
-  onRefresh?: () => void
+  onRetry?: () => void
 }
 
-export default function ObjectGrid({ objects, isLoading, error, onRefresh }: ObjectGridProps) {
-  const [selectedObjects, setSelectedObjects] = useState<Set<string>>(new Set())
-  const [filterType, setFilterType] = useState<ObjectType | 'all'>('all')
-  const [filterClassification, setFilterClassification] = useState<ObjectClassification | 'all'>('all')
-  const [hiddenObjects, setHiddenObjects] = useState<Set<string>>(new Set())
-  const [showBurnDialog, setShowBurnDialog] = useState(false)
-  const [showCommunityDialog, setShowCommunityDialog] = useState(false)
-  const [showSubmitDialog, setShowSubmitDialog] = useState(false)
-  const [quantityDialog, setQuantityDialog] = useState<{
-    open: boolean
-    itemName: string
-    totalCount: number
-    groupedIds: string[]
-  } | null>(null)
+interface GridState {
+  selectedObjects: Set<string>
+  filterType: ObjectType | 'all'
+  filterClassification: ObjectClassification | 'all'
+  hiddenObjects: Set<string>
+  showTransferDialog: boolean
+  showBurnDialog: boolean
+}
+
+type GridAction =
+  | { type: 'SELECT_OBJECT'; objectId: string; selected: boolean }
+  | { type: 'SELECT_ALL'; objectIds: string[] }
+  | { type: 'CLEAR_SELECTION' }
+  | { type: 'SET_FILTER_TYPE'; filterType: ObjectType | 'all' }
+  | { type: 'SET_FILTER_CLASSIFICATION'; filterClassification: ObjectClassification | 'all' }
+  | { type: 'TOGGLE_HIDE'; objectId: string }
+  | { type: 'BULK_HIDE'; objectIds: string[] }
+  | { type: 'SET_SHOW_TRANSFER_DIALOG'; show: boolean }
+  | { type: 'SET_SHOW_BURN_DIALOG'; show: boolean }
+
+function gridReducer(state: GridState, action: GridAction): GridState {
+  switch (action.type) {
+    case 'SELECT_OBJECT': {
+      const newSet = new Set(state.selectedObjects)
+      if (action.selected) {
+        newSet.add(action.objectId)
+      } else {
+        newSet.delete(action.objectId)
+      }
+      return { ...state, selectedObjects: newSet }
+    }
+    case 'SELECT_ALL': {
+      const isAllSelected = state.selectedObjects.size === action.objectIds.length
+      return {
+        ...state,
+        selectedObjects: isAllSelected ? new Set() : new Set(action.objectIds)
+      }
+    }
+    case 'CLEAR_SELECTION':
+      return { ...state, selectedObjects: new Set() }
+    case 'SET_FILTER_TYPE':
+      return { ...state, filterType: action.filterType }
+    case 'SET_FILTER_CLASSIFICATION':
+      return { ...state, filterClassification: action.filterClassification }
+    case 'TOGGLE_HIDE': {
+      const newSet = new Set(state.hiddenObjects)
+      if (newSet.has(action.objectId)) {
+        newSet.delete(action.objectId)
+      } else {
+        newSet.add(action.objectId)
+      }
+      return { ...state, hiddenObjects: newSet }
+    }
+    case 'BULK_HIDE': {
+      const newSet = new Set(state.hiddenObjects)
+      action.objectIds.forEach(id => newSet.add(id))
+      return { ...state, hiddenObjects: newSet, selectedObjects: new Set() }
+    }
+    case 'SET_SHOW_TRANSFER_DIALOG':
+      return { ...state, showTransferDialog: action.show }
+    case 'SET_SHOW_BURN_DIALOG':
+      return { ...state, showBurnDialog: action.show }
+    default:
+      return state
+  }
+}
+
+export default function ObjectGrid({ objects, isLoading, error, onRetry }: ObjectGridProps) {
+  const [gridState, dispatch] = useReducer(gridReducer, {
+    selectedObjects: new Set<string>(),
+    filterType: 'all' as ObjectType | 'all',
+    filterClassification: 'all' as ObjectClassification | 'all',
+    hiddenObjects: new Set<string>(),
+    showTransferDialog: false,
+    showBurnDialog: false
+  })
+  
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 600 })
+  const containerRef = useRef<HTMLDivElement>(null)
   
   // Sui hooks
   const account = useCurrentAccount()
@@ -45,10 +112,27 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
   // Transaction service
   const transactionService = useMemo(() => new TransactionService(client), [client])
 
-  // Wrapper for signTransaction to return a Promise (used for sponsored transactions)
+  // Update container size on resize
+  useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        setContainerSize({
+          width: rect.width,
+          height: Math.min(800, Math.max(400, window.innerHeight * 0.6))
+        })
+      }
+    }
+
+    updateSize()
+    window.addEventListener('resize', updateSize)
+    return () => window.removeEventListener('resize', updateSize)
+  }, [])
+
+  // Wrapper for signAndExecute to return a Promise
   const executeTransaction = (args: any) => {
     return new Promise((resolve, reject) => {
-      signTransaction(args, {
+      signAndExecute(args as any, {
         onSuccess: (result) => resolve(result),
         onError: (error) => reject(error),
       })
@@ -148,16 +232,16 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
   const filteredObjects = useMemo(() => {
     let filtered = groupedObjects
 
-    if (filterType !== 'all') {
-      filtered = filtered.filter(item => item.object.objectType === filterType)
+    if (gridState.filterType !== 'all') {
+      filtered = filtered.filter(item => item.object.objectType === gridState.filterType)
     }
 
-    if (filterClassification !== 'all') {
-      filtered = filtered.filter(item => item.classification === filterClassification)
+    if (gridState.filterClassification !== 'all') {
+      filtered = filtered.filter(item => item.classification === gridState.filterClassification)
     }
 
     return filtered
-  }, [groupedObjects, filterType, filterClassification])
+  }, [objects, gridState.filterType, gridState.filterClassification])
 
   const stats = useMemo(() => {
     // Filter out 0 balance coins from stats as well
@@ -186,105 +270,41 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
     }
   }, [objects])
 
-  const handleSelectObject = (objectId: string, selected: boolean, groupedIds?: string[], itemName?: string) => {
-    // If this is a grouped item with more than 1 object, show quantity selector
-    if (selected && groupedIds && groupedIds.length > 1) {
-      setQuantityDialog({
-        open: true,
-        itemName: itemName || 'items',
-        totalCount: groupedIds.length,
-        groupedIds: groupedIds,
-      })
-      return
-    }
-
-    setSelectedObjects(prev => {
-      const newSet = new Set(prev)
-
-      // If this is a grouped item, select/deselect all grouped objects
-      if (groupedIds && groupedIds.length > 0) {
-        if (selected) {
-          groupedIds.forEach(id => newSet.add(id))
-        } else {
-          groupedIds.forEach(id => newSet.delete(id))
-        }
-      } else {
-        // Single object selection
-        if (selected) {
-          newSet.add(objectId)
-        } else {
-          newSet.delete(objectId)
-        }
-      }
-
-      return newSet
-    })
-  }
-
-  const handleQuantityConfirm = (quantity: number) => {
-    if (!quantityDialog) return
-
-    const { groupedIds } = quantityDialog
-
-    setSelectedObjects(prev => {
-      const newSet = new Set(prev)
-      // Add the first 'quantity' items from the grouped IDs
-      groupedIds.slice(0, quantity).forEach(id => newSet.add(id))
-      return newSet
-    })
-
-    setQuantityDialog(null)
+  const handleSelectObject = (objectId: string, selected: boolean) => {
+    dispatch({ type: 'SELECT_OBJECT', objectId, selected })
   }
 
   const handleSelectAll = () => {
-    // Collect all actual object IDs (including grouped ones)
-    const allObjectIds: string[] = []
-    filteredObjects.forEach(item => {
-      if (item.groupedObjectIds && item.groupedObjectIds.length > 0) {
-        allObjectIds.push(...item.groupedObjectIds)
-      } else {
-        allObjectIds.push(item.object.id)
-      }
+    dispatch({ 
+      type: 'SELECT_ALL', 
+      objectIds: filteredObjects.map(item => item.object.id)
     })
-
-    if (selectedObjects.size === allObjectIds.length) {
-      setSelectedObjects(new Set())
-    } else {
-      setSelectedObjects(new Set(allObjectIds))
-    }
   }
 
   const handleToggleHide = (objectId: string) => {
-    setHiddenObjects(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(objectId)) {
-        newSet.delete(objectId)
-      } else {
-        newSet.add(objectId)
-      }
-      return newSet
+    dispatch({ type: 'TOGGLE_HIDE', objectId })
+  }
+
+  const handleBulkHide = () => {
+    dispatch({ 
+      type: 'BULK_HIDE', 
+      objectIds: Array.from(gridState.selectedObjects)
     })
   }
 
   if (error) {
     return (
-      <div className="text-center py-12">
-        <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
-        <p className="text-destructive font-medium">Error loading wallet objects</p>
-        <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
-      </div>
+      <ErrorState 
+        title="Failed to load wallet objects"
+        error={error}
+        onRetry={onRetry}
+        showRetry={!!onRetry}
+      />
     )
   }
 
   if (isLoading) {
-    return (
-      <div className="text-center py-12">
-        <div className="inline-flex items-center gap-2">
-          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <span>Scanning your wallet...</span>
-        </div>
-      </div>
-    )
+    return <LoadingSpinnerCentered text="Scanning your wallet..." />
   }
 
   if (objects.length === 0) {
@@ -299,55 +319,31 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
   return (
     <div className="space-y-6">
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Objects</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Coins</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex items-center gap-2">
-              <Coins className="w-5 h-5 text-primary" />
-              <span className="text-2xl font-bold">{stats.byType[ObjectType.COIN] || 0}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">NFTs</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex items-center gap-2">
-              <Image className="w-5 h-5 text-primary" />
-              <span className="text-2xl font-bold">{stats.byType[ObjectType.NFT] || 0}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Risk Items</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-              <span className="text-2xl font-bold">
-                {(stats.byClassification[ObjectClassification.DANGER] || 0) + 
+      <StatsGrid>
+        <StatsCard 
+          title="Total Objects" 
+          value={stats.total} 
+        />
+        <StatsCard 
+          title="Coins" 
+          value={stats.byType[ObjectType.COIN] || 0}
+          icon={Coins}
+          iconClassName="text-primary"
+        />
+        <StatsCard 
+          title="NFTs" 
+          value={stats.byType[ObjectType.NFT] || 0}
+          icon={Image}
+          iconClassName="text-primary"
+        />
+        <StatsCard 
+          title="Risk Items" 
+          value={(stats.byClassification[ObjectClassification.DANGER] || 0) + 
                  (stats.byClassification[ObjectClassification.WARNING] || 0)}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          icon={AlertTriangle}
+          iconClassName="text-destructive"
+        />
+      </StatsGrid>
 
       {/* Classification Overview */}
       <Card>
@@ -380,7 +376,7 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4" />
-          <Select value={filterType} onValueChange={(value: ObjectType | 'all') => setFilterType(value)}>
+          <Select value={gridState.filterType} onValueChange={(value: ObjectType | 'all') => dispatch({ type: 'SET_FILTER_TYPE', filterType: value })}>
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
@@ -394,7 +390,7 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
             </SelectContent>
           </Select>
 
-          <Select value={filterClassification} onValueChange={(value: ObjectClassification | 'all') => setFilterClassification(value)}>
+          <Select value={gridState.filterClassification} onValueChange={(value: ObjectClassification | 'all') => dispatch({ type: 'SET_FILTER_CLASSIFICATION', filterClassification: value })}>
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
@@ -409,20 +405,20 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
           </Select>
         </div>
 
-        {selectedObjects.size > 0 && (
+        {gridState.selectedObjects.size > 0 && (
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              {selectedObjects.size} selected
+              {gridState.selectedObjects.size} selected
             </span>
             <Button variant="outline" size="sm" onClick={() => setShowSubmitDialog(true)}>
               <Upload className="w-4 h-4 mr-1" />
               Submit for Review
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowCommunityDialog(true)}>
-              <Users className="w-4 h-4 mr-1" />
-              View Votes
+            <Button variant="outline" size="sm" onClick={() => dispatch({ type: 'SET_SHOW_TRANSFER_DIALOG', show: true })}>
+              <Send className="w-4 h-4 mr-1" />
+              Transfer
             </Button>
-            <Button variant="destructive" size="sm" onClick={() => setShowBurnDialog(true)}>
+            <Button variant="destructive" size="sm" onClick={() => dispatch({ type: 'SET_SHOW_BURN_DIALOG', show: true })}>
               <Trash2 className="w-4 h-4 mr-1" />
               Burn
             </Button>
@@ -434,7 +430,7 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
       <div className="flex items-center gap-2">
         <input
           type="checkbox"
-          checked={selectedObjects.size === filteredObjects.length && filteredObjects.length > 0}
+          checked={gridState.selectedObjects.size === filteredObjects.length && filteredObjects.length > 0}
           onChange={handleSelectAll}
           className="w-4 h-4"
         />
@@ -444,38 +440,41 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
       </div>
 
       {/* Objects Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {filteredObjects.map(item => (
-          <ObjectCard
-            key={item.object.id}
-            item={{ ...item, isHidden: hiddenObjects.has(item.object.id) }}
-            isSelected={
-              item.groupedObjectIds
-                ? item.groupedObjectIds.some(id => selectedObjects.has(id))
-                : selectedObjects.has(item.object.id)
-            }
-            onSelect={(selected) => {
-              const itemName = item.object.objectType === ObjectType.COIN
-                ? (item.object as CoinObject).symbol || 'coins'
-                : item.object.objectType === ObjectType.NFT
-                ? 'NFTs'
-                : 'items'
-              handleSelectObject(item.object.id, selected, item.groupedObjectIds, itemName)
-            }}
+      <div ref={containerRef} className="w-full">
+        {filteredObjects.length > 100 ? (
+          <VirtualizedObjectGrid
+            objects={filteredObjects}
+            selectedObjects={gridState.selectedObjects}
+            hiddenObjects={gridState.hiddenObjects}
+            onSelectObject={handleSelectObject}
             onToggleHide={handleToggleHide}
-            totalOfType={item.groupedObjectIds?.length}
+            containerHeight={containerSize.height}
+            containerWidth={containerSize.width}
           />
-        ))}
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {filteredObjects.map(item => (
+              <ObjectCard
+                key={item.object.id}
+                item={{ ...item, isHidden: gridState.hiddenObjects.has(item.object.id) }}
+                isSelected={gridState.selectedObjects.has(item.object.id)}
+                onSelect={(selected) => handleSelectObject(item.object.id, selected)}
+                onToggleHide={handleToggleHide}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Submit for Review Dialog */}
       {account && (
-        <SubmitForReviewDialog
-          open={showSubmitDialog}
-          onOpenChange={setShowSubmitDialog}
-          selectedObjects={objects.filter(obj => selectedObjects.has(obj.object.id))}
-          onSubmitComplete={() => {
-            setSelectedObjects(new Set())
+        <TransferDialog
+          open={gridState.showTransferDialog}
+          onOpenChange={(show) => dispatch({ type: 'SET_SHOW_TRANSFER_DIALOG', show })}
+          selectedObjects={objects.filter(obj => gridState.selectedObjects.has(obj.object.id))}
+          onTransferComplete={() => {
+            dispatch({ type: 'CLEAR_SELECTION' })
+            // Optionally refresh the objects list here
           }}
         />
       )}
@@ -503,15 +502,12 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
       {/* Burn Dialog */}
       {account && (
         <BurnDialog
-          open={showBurnDialog}
-          onOpenChange={setShowBurnDialog}
-          selectedObjects={objects.filter(obj => selectedObjects.has(obj.object.id))}
+          open={gridState.showBurnDialog}
+          onOpenChange={(show) => dispatch({ type: 'SET_SHOW_BURN_DIALOG', show })}
+          selectedObjects={objects.filter(obj => gridState.selectedObjects.has(obj.object.id))}
           onBurnComplete={() => {
-            setSelectedObjects(new Set())
-            // Refresh the objects list from cache (objects are already removed from cache)
-            if (onRefresh) {
-              setTimeout(() => onRefresh(), 500)
-            }
+            dispatch({ type: 'CLEAR_SELECTION' })
+            // Optionally refresh the objects list here
           }}
           transactionService={transactionService}
           senderAddress={account.address}

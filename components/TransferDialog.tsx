@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Send, AlertTriangle, CheckCircle } from 'lucide-react'
+import { Send, AlertTriangle, CheckCircle } from 'lucide-react'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { TransactionService } from '@/services/transactionService'
 import { truncateAddress } from '@/lib/utils'
 
@@ -19,7 +20,7 @@ interface TransferDialogProps {
   onTransferComplete: () => void
   transactionService: TransactionService
   senderAddress: string
-  onExecuteTransaction: (transaction: any) => Promise<any>
+  onExecuteTransaction: (transaction: unknown) => Promise<unknown>
 }
 
 export default function TransferDialog({
@@ -163,12 +164,14 @@ export default function TransferDialog({
               value={recipientAddress}
               onChange={(e) => setRecipientAddress(e.target.value.trim())}
               className={recipientAddress && !isValidAddress ? 'border-red-500' : ''}
+              aria-invalid={recipientAddress && !isValidAddress ? 'true' : 'false'}
+              aria-describedby={recipientAddress && !isValidAddress ? 'recipient-error' : recipientAddress && isValidAddress ? 'recipient-valid' : undefined}
             />
             {recipientAddress && !isValidAddress && (
-              <p className="text-sm text-red-500">Invalid Sui address format</p>
+              <p id="recipient-error" className="text-sm text-red-500" role="alert">Invalid Sui address format</p>
             )}
             {recipientAddress && isValidAddress && (
-              <p className="text-sm text-green-600">✓ Valid address format</p>
+              <p id="recipient-valid" className="text-sm text-green-600" role="status">✓ Valid address format</p>
             )}
           </div>
 
@@ -181,7 +184,7 @@ export default function TransferDialog({
           </Alert>
 
           {error && (
-            <Alert variant="destructive">
+            <Alert variant="destructive" role="alert">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -196,7 +199,7 @@ export default function TransferDialog({
             onClick={handleTransfer} 
             disabled={!recipientAddress || !isValidAddress || isLoading}
           >
-            {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {isLoading && <LoadingSpinner size="sm" className="mr-2" />}
             Transfer Objects
           </Button>
         </DialogFooter>

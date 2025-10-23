@@ -1,11 +1,25 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import WalletProvider from "@/components/WalletProvider";
-import { Toaster } from "sonner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export const metadata: Metadata = {
   title: "Sui Wallet Cleaner",
-  description: "Review and manage unwanted NFTs in your Sui wallet",
+  description: "Secure wallet management for the Sui ecosystem",
+  keywords: ["Sui", "wallet", "NFT", "crypto", "blockchain", "cleaner"],
+  authors: [{ name: "Sui Wallet Cleaner" }],
+};
+
+export const viewport: Viewport = {
+  colorScheme: "dark",
+  themeColor: "#0a0a0a",
 };
 
 export default function RootLayout({
@@ -15,10 +29,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="antialiased bg-deep-ocean min-h-screen">
+      <body className={`${inter.variable} min-h-screen bg-background text-foreground antialiased`}>
         <WalletProvider>
-          {children}
-          <Toaster position="bottom-right" theme="dark" />
+          <ErrorBoundary>
+            <div className="min-h-screen bg-gradient-to-br from-background via-background to-background-secondary">
+              {children}
+            </div>
+          </ErrorBoundary>
         </WalletProvider>
       </body>
     </html>

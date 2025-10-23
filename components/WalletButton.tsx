@@ -61,10 +61,13 @@ export default function WalletButton() {
           Connect Wallet
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md bg-aqua border-aqua">
+      <DialogContent className="sm:max-w-md" aria-describedby="wallet-dialog-description">
         <DialogHeader>
           <DialogTitle className="text-deep-ocean">Connect Your Wallet</DialogTitle>
         </DialogHeader>
+        <div id="wallet-dialog-description" className="sr-only">
+          Choose a wallet to connect to your Sui account and access wallet management features
+        </div>
         <div className="space-y-4">
           {wallets.length === 0 ? (
             <div className="text-center py-8 space-y-4">

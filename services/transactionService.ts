@@ -1,24 +1,7 @@
 import { SuiClient } from '@mysten/sui/client'
 import { Transaction } from '@mysten/sui/transactions'
 import { WalletObject, ObjectType, CoinObject, NFTObject } from '@/types/objects'
-import { suiSponsorship, GasStationError } from '@3mate/gas-station-sdk'
-import { toHex, fromHex, toBase64 } from '@mysten/sui/utils'
-import { cacheService } from './cacheService'
-
-// Gas Station Configuration - Always enabled
-const GAS_STATION_API_KEY = process.env.NEXT_PUBLIC_GAS_STATION_API_KEY || ''
-const GAS_STATION_NETWORK = (process.env.NEXT_PUBLIC_GAS_STATION_NETWORK || 'mainnet') as 'mainnet' | 'testnet'
-
-if (!GAS_STATION_API_KEY) {
-  console.warn('⚠️ Gas Station API key is not configured. Set NEXT_PUBLIC_GAS_STATION_API_KEY in your .env file.')
-}
-
-console.log('🚀 Gas Station Configuration:', {
-  network: GAS_STATION_NETWORK,
-  hasApiKey: !!GAS_STATION_API_KEY,
-  apiKeyPrefix: GAS_STATION_API_KEY ? GAS_STATION_API_KEY.substring(0, 20) + '...' : 'not set',
-  usingProxy: true
-})
+// Type for transaction execution function
 
 export interface TransferOptions {
   objects: WalletObject[]
@@ -47,7 +30,7 @@ export class TransactionService {
 
   async transferObjects(
     options: TransferOptions,
-    signAndExecute: any
+    signAndExecute: (transaction: any) => Promise<any>
   ): Promise<TransactionResult> {
     try {
       const tx = new Transaction()
@@ -87,8 +70,15 @@ export class TransactionService {
       // Set sender
       tx.setSender(options.senderAddress)
 
-      // Always use sponsored transactions via Gas Station
-      const result = await this.executeSponsoredTransaction(tx, options.senderAddress, signAndExecute)
+      // Execute transaction
+      const result = await signAndExecute({
+        transaction: tx,
+        requestType: 'WaitForLocalExecution',
+        options: {
+          showEffects: true,
+          showEvents: true,
+        },
+      })
 
       // If successful, invalidate cache for these objects
       if (result.success) {
@@ -108,7 +98,7 @@ export class TransactionService {
 
   async burnObjects(
     options: BurnOptions,
-    signAndExecute: any
+    signAndExecute: (transaction: any) => Promise<any>
   ): Promise<TransactionResult> {
     try {
       const tx = new Transaction()
@@ -153,137 +143,15 @@ export class TransactionService {
       // Set sender
       tx.setSender(options.senderAddress)
 
-      // Always use sponsored transactions via Gas Station
-      const result = await this.executeSponsoredTransaction(tx, options.senderAddress, signAndExecute)
-
-      // If successful, invalidate cache for these objects
-      if (result.success) {
-        await cacheService.removeObjectsFromCache(options.senderAddress, allObjectIds)
-        console.log('🗑️ Removed burned objects from cache')
-      }
-
-      return result
-    } catch (error) {
-      console.error('Burn failed:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Burn failed',
-      }
-    }
-  }
-
-  private async executeSponsoredTransaction(
-    tx: Transaction,
-    senderAddress: string,
-    signTransaction: any
-  ): Promise<TransactionResult> {
-    try {
-      console.log('Sponsoring transaction with Gas Station...')
-
-      // Build transaction WITHOUT gas payment for sponsorship
-      const txBytes = await tx.build({
-        client: this.client,
-        onlyTransactionKind: true, // Critical for sponsorship!
-      })
-
-      const rawTxBytesHex = toHex(txBytes)
-
-      // Request sponsorship from Gas Station
-      console.log('Requesting sponsorship...', {
-        network: GAS_STATION_NETWORK,
-        sender: senderAddress,
-        apiKeyPresent: !!GAS_STATION_API_KEY,
-      })
-
-      let sponsorResponse
-      try {
-        console.log('Calling Gas Station API via proxy...', {
-          network: GAS_STATION_NETWORK,
-          txBytesLength: rawTxBytesHex.length,
-        })
-
-        // Use our Next.js API proxy to avoid CORS issues
-        const response = await fetch('/api/gas-station/sponsor', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            apiKey: GAS_STATION_API_KEY,
-            rawTxBytesHex,
-            sender: senderAddress,
-            network: GAS_STATION_NETWORK,
-          }),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new GasStationError(
-            errorData.error || errorData.message || `Sponsorship failed (${response.status})`,
-            response.status,
-            errorData
-          )
-        }
-
-        sponsorResponse = await response.json()
-        console.log('✅ Sponsorship successful!')
-      } catch (sponsorError: any) {
-        console.error('❌ Sponsorship error:', sponsorError)
-        console.error('Error details:', {
-          message: sponsorError.message,
-          statusCode: sponsorError.statusCode,
-          details: sponsorError.details,
-        })
-
-        let errorMessage = sponsorError.message || 'Sponsorship failed'
-        if (sponsorError instanceof GasStationError) {
-          errorMessage = `Gas Station Error (${sponsorError.statusCode}): ${sponsorError.message}`
-        }
-
-        // Provide helpful error messages
-        if (errorMessage.includes('404')) {
-          errorMessage = `Gas Station API not found. Please verify:
-- API Key is valid for ${GAS_STATION_NETWORK}
-- Network setting is correct: ${GAS_STATION_NETWORK}
-- Gas Station service is operational
-
-Original error: ${sponsorError.message}`
-        } else if (errorMessage.includes('401') || errorMessage.includes('403')) {
-          errorMessage = `Authentication failed. Please verify:
-- API Key is correct: ${GAS_STATION_API_KEY.substring(0, 20)}...
-- API Key has permission for ${GAS_STATION_NETWORK}
-
-Original error: ${sponsorError.message}`
-        }
-
-        throw new Error(errorMessage)
-      }
-
-      const { txBytesHex, sponsorSignature } = sponsorResponse
-      const sponsoredBytes = fromHex(txBytesHex)
-
-      // Sign with wallet
-      console.log('Requesting user signature...')
-      const userSignature = await signTransaction({ transaction: toBase64(sponsoredBytes) })
-      console.log('✅ User signature received:', userSignature)
-
-      console.log('Executing sponsored transaction...')
-      console.log('Sponsored bytes length:', sponsoredBytes.length)
-      console.log('User signature:', userSignature.signature.substring(0, 20) + '...')
-      console.log('Sponsor signature:', sponsorSignature.substring(0, 20) + '...')
-
-      // Execute transaction with both signatures
-      const result = await this.client.executeTransactionBlock({
-        transactionBlock: sponsoredBytes,
-        signature: [userSignature.signature, sponsorSignature],
+      // Execute transaction
+      const result = await signAndExecute({
+        transaction: tx,
+        requestType: 'WaitForLocalExecution',
         options: {
           showEffects: true,
           showEvents: true,
         },
       })
-
-      console.log('✅ Transaction executed successfully!', result.digest)
-      console.log('Transaction effects:', result.effects)
 
       return {
         success: true,
