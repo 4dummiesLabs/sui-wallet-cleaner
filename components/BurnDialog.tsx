@@ -33,13 +33,7 @@ export default function BurnDialog({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [transactionDigest, setTransactionDigest] = useState('')
-  const [confirmationStep, setConfirmationStep] = useState(0)
-
   const handleBurn = async () => {
-    if (confirmationStep < 2) {
-      setConfirmationStep(confirmationStep + 1)
-      return
-    }
 
     setIsLoading(true)
     setError('')
@@ -75,7 +69,6 @@ export default function BurnDialog({
     setError('')
     setSuccess(false)
     setTransactionDigest('')
-    setConfirmationStep(0)
     onOpenChange(false)
   }
 
@@ -100,7 +93,7 @@ export default function BurnDialog({
   if (success) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700">
           <DialogHeader>
             <div className="flex items-center gap-2 mb-2">
               <CheckCircle className="w-5 h-5 text-green-500" />
@@ -136,51 +129,16 @@ export default function BurnDialog({
     )
   }
 
-  const getConfirmationContent = () => {
-    switch (confirmationStep) {
-      case 0:
-        return {
-          title: "Confirm Burn Action",
-          description: "You are about to permanently destroy these objects.",
-          buttonText: "Continue",
-          variant: "outline" as const
-        }
-      case 1:
-        return {
-          title: "Final Warning",
-          description: "This action is IRREVERSIBLE. These objects will be permanently lost.",
-          buttonText: "I Understand, Burn Objects",
-          variant: "destructive" as const
-        }
-      case 2:
-        return {
-          title: "Burning Objects",
-          description: "Please confirm the transaction in your wallet.",
-          buttonText: "Burning...",
-          variant: "destructive" as const
-        }
-      default:
-        return {
-          title: "Confirm Burn",
-          description: "Ready to burn objects.",
-          buttonText: "Burn",
-          variant: "destructive" as const
-        }
-    }
-  }
-
-  const confirmationContent = getConfirmationContent()
-
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
             <Skull className="w-5 h-5" />
-            {confirmationContent.title}
+            Confirm Burn Action
           </DialogTitle>
           <DialogDescription>
-            {confirmationContent.description}
+            You are about to permanently destroy these objects.
           </DialogDescription>
         </DialogHeader>
 
@@ -216,22 +174,7 @@ export default function BurnDialog({
           <Alert variant="destructive" role="alert">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              {confirmationStep === 0 && (
-                <>
-                  <strong>Warning:</strong> Burned objects cannot be recovered. They will be sent to a burn address and permanently lost.
-                </>
-              )}
-              {confirmationStep === 1 && (
-                <>
-                  <strong>FINAL WARNING:</strong> You are about to PERMANENTLY DESTROY {selectedObjects.length} objects. 
-                  This action is IRREVERSIBLE and cannot be undone.
-                </>
-              )}
-              {confirmationStep >= 2 && (
-                <>
-                  <strong>Executing burn transaction...</strong> Please confirm in your wallet.
-                </>
-              )}
+              <strong>Warning:</strong> Burned objects cannot be recovered. They will be sent to a burn address and permanently lost.
             </AlertDescription>
           </Alert>
 
@@ -248,7 +191,7 @@ export default function BurnDialog({
             Cancel
           </Button>
           <Button 
-            variant={confirmationContent.variant}
+            variant="destructive"
             onClick={handleBurn}
             disabled={isLoading}
             className={confirmationStep >= 1 ? 'bg-red-600 hover:bg-red-700' : ''}

@@ -1,6 +1,6 @@
 'use client'
 
-import { ClassifiedObject, ObjectType, ObjectClassification } from '@/types/objects'
+import { ClassifiedObject, ObjectType, ObjectClassification, CoinObject } from '@/types/objects'
 import ObjectCard from './ObjectCard'
 import VirtualizedObjectGrid from './VirtualizedObjectGrid'
 import TransferDialog from './TransferDialog'
@@ -15,7 +15,7 @@ import { LoadingSpinnerCentered } from '@/components/ui/loading-spinner'
 import { ErrorState } from '@/components/ui/error-state'
 import { StatsCard, StatsGrid } from '@/components/StatsCard'
 import { TransactionService } from '@/services/transactionService'
-import { useCurrentAccount, useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit'
+import { useCurrentAccount, useSuiClient, useSignTransaction } from '@mysten/dapp-kit'
 
 interface ObjectGridProps {
   objects: ClassifiedObject[]
@@ -107,8 +107,8 @@ export default function ObjectGrid({ objects, isLoading, error, onRetry }: Objec
   // Sui hooks
   const account = useCurrentAccount()
   const client = useSuiClient()
-  const { mutate: signAndExecute } = useSignAndExecuteTransaction()
-  
+  const { mutate: signTransaction } = useSignTransaction()
+
   // Transaction service
   const transactionService = useMemo(() => new TransactionService(client), [client])
 
@@ -139,8 +139,98 @@ export default function ObjectGrid({ objects, isLoading, error, onRetry }: Objec
     })
   }
 
+  // Group coins by type and NFTs by collection
+  const groupedObjects = useMemo(() => {
+    const coinGroups = new Map<string, ClassifiedObject[]>()
+    const nftGroups = new Map<string, ClassifiedObject[]>()
+    const others: ClassifiedObject[] = []
+
+    // Separate and group objects
+    objects.forEach(item => {
+      if (item.object.objectType === ObjectType.COIN) {
+        const coin = item.object as CoinObject
+        // Skip 0 balance coins
+        if (Number(coin.balance) > 0) {
+          const key = coin.coinType
+          if (!coinGroups.has(key)) {
+            coinGroups.set(key, [])
+          }
+          coinGroups.get(key)!.push(item)
+        }
+      } else if (item.object.objectType === ObjectType.NFT) {
+        const nft = item.object as NFTObject
+        const key = nft.packageId // Group by package/collection
+        if (!nftGroups.has(key)) {
+          nftGroups.set(key, [])
+        }
+        nftGroups.get(key)!.push(item)
+      } else {
+        others.push(item)
+      }
+    })
+
+    // Merge grouped coins into single objects with combined balances
+    const mergedCoins: ClassifiedObject[] = []
+    coinGroups.forEach((group, coinType) => {
+      if (group.length === 0) return
+
+      // Use the first coin as the base
+      const baseCoin = group[0].object as CoinObject
+
+      // Sum up all balances
+      const totalBalance = group.reduce((sum, item) => {
+        return sum + BigInt((item.object as CoinObject).balance)
+      }, BigInt(0))
+
+      // Create merged coin object
+      const mergedCoin: CoinObject = {
+        ...baseCoin,
+        balance: totalBalance.toString(),
+        id: `merged_coin_${coinType}`, // Special ID for merged coins
+      }
+
+      // Create merged classified object
+      const mergedItem: ClassifiedObject = {
+        ...group[0],
+        object: mergedCoin,
+        // Store the original object IDs for selection
+        groupedObjectIds: group.map(item => item.object.id),
+      }
+
+      mergedCoins.push(mergedItem)
+    })
+
+    // Merge grouped NFTs - keep first NFT as representative with count
+    const mergedNFTs: ClassifiedObject[] = []
+    nftGroups.forEach((group, packageId) => {
+      if (group.length === 0) return
+
+      // Use the first NFT as the base
+      const baseNFT = group[0].object as NFTObject
+
+      // Create merged NFT object (keeping first NFT's data)
+      const mergedNFT: NFTObject = {
+        ...baseNFT,
+        id: `merged_nft_${packageId}`, // Special ID for merged NFTs
+        name: baseNFT.name || `${baseNFT.moduleName} Collection`,
+      }
+
+      // Create merged classified object
+      const mergedItem: ClassifiedObject = {
+        ...group[0],
+        object: mergedNFT,
+        // Store the original object IDs for selection
+        groupedObjectIds: group.map(item => item.object.id),
+      }
+
+      mergedNFTs.push(mergedItem)
+    })
+
+    return [...mergedCoins, ...mergedNFTs, ...others]
+  }, [objects])
+
   const filteredObjects = useMemo(() => {
-    let filtered = objects
+    let filtered = groupedObjects
 
     if (gridState.filterType !== 'all') {
       filtered = filtered.filter(item => item.object.objectType === gridState.filterType)
@@ -154,18 +244,27 @@ export default function ObjectGrid({ objects, isLoading, error, onRetry }: Objec
   }, [objects, gridState.filterType, gridState.filterClassification])
 
   const stats = useMemo(() => {
-    const byType = objects.reduce((acc, item) => {
+    // Filter out 0 balance coins from stats as well
+    const visibleObjects = objects.filter(item => {
+      if (item.object.objectType === ObjectType.COIN) {
+        const coin = item.object as CoinObject
+        return Number(coin.balance) > 0
+      }
+      return true
+    })
+
+    const byType = visibleObjects.reduce((acc, item) => {
       acc[item.object.objectType] = (acc[item.object.objectType] || 0) + 1
       return acc
     }, {} as Record<ObjectType, number>)
 
-    const byClassification = objects.reduce((acc, item) => {
+    const byClassification = visibleObjects.reduce((acc, item) => {
       acc[item.classification] = (acc[item.classification] || 0) + 1
       return acc
     }, {} as Record<ObjectClassification, number>)
 
     return {
-      total: objects.length,
+      total: visibleObjects.length,
       byType,
       byClassification,
     }
@@ -311,9 +410,9 @@ export default function ObjectGrid({ objects, isLoading, error, onRetry }: Objec
             <span className="text-sm text-muted-foreground">
               {gridState.selectedObjects.size} selected
             </span>
-            <Button variant="outline" size="sm" onClick={handleBulkHide}>
-              <EyeOff className="w-4 h-4 mr-1" />
-              Hide Selected
+            <Button variant="outline" size="sm" onClick={() => setShowSubmitDialog(true)}>
+              <Upload className="w-4 h-4 mr-1" />
+              Submit for Review
             </Button>
             <Button variant="outline" size="sm" onClick={() => dispatch({ type: 'SET_SHOW_TRANSFER_DIALOG', show: true })}>
               <Send className="w-4 h-4 mr-1" />
@@ -367,7 +466,7 @@ export default function ObjectGrid({ objects, isLoading, error, onRetry }: Objec
         )}
       </div>
 
-      {/* Transfer Dialog */}
+      {/* Submit for Review Dialog */}
       {account && (
         <TransferDialog
           open={gridState.showTransferDialog}
@@ -377,11 +476,28 @@ export default function ObjectGrid({ objects, isLoading, error, onRetry }: Objec
             dispatch({ type: 'CLEAR_SELECTION' })
             // Optionally refresh the objects list here
           }}
-          transactionService={transactionService}
-          senderAddress={account.address}
-          onExecuteTransaction={executeTransaction}
         />
       )}
+
+      {/* Quantity Selector Dialog */}
+      {quantityDialog && (
+        <QuantitySelectorDialog
+          open={quantityDialog.open}
+          onOpenChange={(open) => {
+            if (!open) setQuantityDialog(null)
+          }}
+          itemName={quantityDialog.itemName}
+          totalCount={quantityDialog.totalCount}
+          onConfirm={handleQuantityConfirm}
+        />
+      )}
+
+      {/* Community Dialog */}
+      <CommunityDialog
+        open={showCommunityDialog}
+        onOpenChange={setShowCommunityDialog}
+        selectedObjects={objects.filter(obj => selectedObjects.has(obj.object.id))}
+      />
 
       {/* Burn Dialog */}
       {account && (

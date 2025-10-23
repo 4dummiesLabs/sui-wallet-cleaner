@@ -13,6 +13,7 @@ interface ObjectCardProps {
   isSelected: boolean
   onSelect: (selected: boolean) => void
   onToggleHide?: (id: string) => void
+  totalOfType?: number
 }
 
 function ObjectCard({ item, isSelected, onSelect, onToggleHide }: ObjectCardProps) {
@@ -79,7 +80,7 @@ function ObjectCard({ item, isSelected, onSelect, onToggleHide }: ObjectCardProp
 
     if (item.object.objectType === ObjectType.NFT) {
       const nft = item.object as NFTObject
-      
+
       return (
         <div className="space-y-4">
           <div className="relative aspect-square bg-muted rounded-lg overflow-hidden">

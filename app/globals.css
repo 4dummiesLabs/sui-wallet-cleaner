@@ -1,3 +1,7 @@
+/* Font Imports - Must be at the top */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700,900&display=swap');
+
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
@@ -323,5 +327,65 @@
   to { 
     opacity: 1; 
     transform: translateY(0); 
+  }
+}
+
+/* Custom utility classes for brand colors */
+@layer utilities {
+  .text-ocean {
+    color: rgb(1 24 41);
+  }
+  
+  .text-aqua {
+    color: rgb(192 230 255);
+  }
+  
+  .text-deep-ocean {
+    color: rgb(3 15 28);
+  }
+  
+  .text-cloud {
+    color: rgb(255 255 255);
+  }
+  
+  .bg-ocean {
+    background-color: rgb(1 24 41);
+  }
+  
+  .bg-aqua {
+    background-color: rgb(192 230 255);
+  }
+  
+  .bg-deep-ocean {
+    background-color: rgb(3 15 28);
+  }
+  
+  .bg-cloud {
+    background-color: rgb(255 255 255);
+  }
+  
+  .border-ocean {
+    border-color: rgb(1 24 41);
+  }
+  
+  .border-aqua {
+    border-color: rgb(192 230 255);
+  }
+  
+  .border-deep-ocean {
+    border-color: rgb(3 15 28);
+  }
+  
+  .border-cloud {
+    border-color: rgb(255 255 255);
+  }
+  
+  /* Gradient utilities */
+  .gradient-ocean-aqua {
+    background: linear-gradient(135deg, rgb(1 24 41) 0%, rgb(192 230 255) 100%);
+  }
+  
+  .gradient-deep-ocean {
+    background: linear-gradient(180deg, rgb(3 15 28) 0%, rgb(1 24 41) 100%);
   }
 }

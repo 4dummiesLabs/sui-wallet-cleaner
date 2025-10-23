@@ -1,6 +1,7 @@
 'use client'
 
 import WalletButton from '@/components/WalletButton'
+import CommunityVotesButton from '@/components/CommunityVotesButton'
 import ObjectGrid from '@/components/ObjectGrid'
 import MagnetLines from '@/components/MagnetLines'
 import SpotlightCard from '@/components/SpotlightCard'
@@ -51,7 +52,6 @@ export default function Home() {
                 <h1 className="heading-small text-foreground">Sui Wallet Manager</h1>
               </div>
             </div>
-            <WalletButton />
           </div>
         </div>
       </header>

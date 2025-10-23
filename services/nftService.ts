@@ -44,13 +44,13 @@ export class NFTService {
 
   private isNFT(obj: SuiObjectResponse): boolean {
     if (!obj.data || obj.error) return false
-    
+
     const type = obj.data.type || ''
     const isCoin = type.startsWith('0x2::coin::Coin')
     const hasDisplay = !!(obj.data.display && obj.data.display.data)
     const isKiosk = type.includes('kiosk')
     const isStakedSui = type.includes('staked_sui')
-    
+
     return !isCoin && !isKiosk && !isStakedSui && (hasDisplay || this.isPotentialNFT(type))
   }
 
