@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Filter, Trash2, EyeOff, Coins, Image, Shield, AlertTriangle, Users, Upload } from 'lucide-react'
+import { Filter, Trash2, Coins, Image, Shield, AlertTriangle, Users, Upload } from 'lucide-react'
 import { TransactionService } from '@/services/transactionService'
 import { useCurrentAccount, useSuiClient, useSignTransaction } from '@mysten/dapp-kit'
 
@@ -266,15 +266,6 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
     })
   }
 
-  const handleBulkHide = () => {
-    setHiddenObjects(prev => {
-      const newSet = new Set(prev)
-      selectedObjects.forEach(id => newSet.add(id))
-      return newSet
-    })
-    setSelectedObjects(new Set())
-  }
-
   if (error) {
     return (
       <div className="text-center py-12">
@@ -423,10 +414,6 @@ export default function ObjectGrid({ objects, isLoading, error, onRefresh }: Obj
             <span className="text-sm text-muted-foreground">
               {selectedObjects.size} selected
             </span>
-            <Button variant="outline" size="sm" onClick={handleBulkHide}>
-              <EyeOff className="w-4 h-4 mr-1" />
-              Hide
-            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowSubmitDialog(true)}>
               <Upload className="w-4 h-4 mr-1" />
               Submit for Review

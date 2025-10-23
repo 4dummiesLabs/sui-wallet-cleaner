@@ -166,7 +166,7 @@ export default function SubmitForReviewDialog({
       setSubmittedIds(prev => new Set([...prev, objectId]))
       toast.success(`${object.object.name || 'Object'} submitted for community review`)
       
-      // Trigger a global event to refresh community votes
+      // Trigger a global event to refresh community review
       window.dispatchEvent(new CustomEvent('review-submitted'))
       
       // Clear description after successful submission

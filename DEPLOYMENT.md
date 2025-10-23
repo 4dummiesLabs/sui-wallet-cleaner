@@ -61,7 +61,7 @@ npm run start
 ## Features
 
 ### For Users
-1. **Community Votes Button**: Appears in header when wallet is connected
+1. **community review Button**: Appears in header when wallet is connected
    - Shows pending review count
    - Access voting queue
    - Cast votes on submitted objects

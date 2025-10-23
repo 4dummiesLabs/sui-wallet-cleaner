@@ -172,7 +172,7 @@ export default function CommunityVotesButton() {
         className="gap-2 relative pr-3"
       >
         <Users className="w-4 h-4" />
-        <span>Community Votes</span>
+        <span>community review</span>
         {pendingCount > 0 && (
           <Badge
             variant="destructive"

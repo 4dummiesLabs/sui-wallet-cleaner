@@ -5,16 +5,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ThumbsUp, ThumbsDown, Users, Shield, AlertTriangle, Loader2, MessageCircle } from 'lucide-react'
+import { ThumbsUp, ThumbsDown, Users, Shield, AlertTriangle, Loader2, MessageCircle, Info } from 'lucide-react'
 import { ClassifiedObject, ObjectClassification } from '@/types/objects'
 import { cn } from '@/lib/utils'
+import { VotingService, ReviewRequest } from '@/services/votingService'
+import { useSuiClient, useCurrentAccount } from '@mysten/dapp-kit'
 
 interface CommunityRating {
   objectId: string
   thumbsUp: number
   thumbsDown: number
   userVote?: 'up' | 'down' | null
-  comments: string[]
+  submitter?: string
+  submissionTime?: number
+  metadata?: string
+  hasVoted?: boolean
 }
 
 interface CommunityDialogProps {
@@ -23,91 +28,78 @@ interface CommunityDialogProps {
   selectedObjects: ClassifiedObject[]
 }
 
-// Mock community data - in production this would come from a backend
-const mockCommunityData: Record<string, CommunityRating> = {}
-
 export default function CommunityDialog({ open, onOpenChange, selectedObjects }: CommunityDialogProps) {
   const [ratings, setRatings] = useState<Record<string, CommunityRating>>({})
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'ratings' | 'legitimacy'>('ratings')
+  const client = useSuiClient()
+  const account = useCurrentAccount()
+  const votingService = new VotingService(client)
 
   useEffect(() => {
-    if (open && selectedObjects.length > 0) {
+    if (open) {
       loadCommunityRatings()
     }
   }, [open, selectedObjects])
 
   const loadCommunityRatings = async () => {
     setLoading(true)
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Fetch all reviews from the voting service
+      const reviews = await votingService.getAllReviews(account?.address)
+      
+      const newRatings: Record<string, CommunityRating> = {}
+      
+      // Map selected objects to their voting data
+      selectedObjects.forEach(obj => {
+        const review = reviews.find(r => r.objectId === obj.object.id)
+        
+        if (review) {
+          newRatings[obj.object.id] = {
+            objectId: obj.object.id,
+            thumbsUp: review.votesUp,
+            thumbsDown: review.votesDown,
+            userVote: review.hasVoted && review.userVote !== undefined ? 
+              (review.userVote ? 'up' : 'down') : null,
+            submitter: review.submitter,
+            submissionTime: review.submissionTime,
+            metadata: review.metadata,
+            hasVoted: review.hasVoted
+          }
+        } else {
+          // Object not submitted for review yet
+          newRatings[obj.object.id] = {
+            objectId: obj.object.id,
+            thumbsUp: 0,
+            thumbsDown: 0,
+            userVote: null
+          }
+        }
+      })
+      
+      setRatings(newRatings)
+    } catch (error) {
+      console.error('Error loading community ratings:', error)
+      // Set empty ratings for all objects on error
       const newRatings: Record<string, CommunityRating> = {}
       selectedObjects.forEach(obj => {
-        // Use existing data or create new mock data
-        newRatings[obj.object.id] = mockCommunityData[obj.object.id] || {
+        newRatings[obj.object.id] = {
           objectId: obj.object.id,
-          thumbsUp: Math.floor(Math.random() * 100),
-          thumbsDown: Math.floor(Math.random() * 20),
-          userVote: null,
-          comments: [
-            "This looks safe to me",
-            "I've used this contract before, it's legitimate",
-            "Be careful, unusual activity detected"
-          ].slice(0, Math.floor(Math.random() * 3) + 1)
+          thumbsUp: 0,
+          thumbsDown: 0,
+          userVote: null
         }
       })
       setRatings(newRatings)
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
-  const handleVote = (objectId: string, voteType: 'up' | 'down') => {
-    setRatings(prev => {
-      const current = prev[objectId]
-      const wasUp = current.userVote === 'up'
-      const wasDown = current.userVote === 'down'
-      
-      let newThumbsUp = current.thumbsUp
-      let newThumbsDown = current.thumbsDown
-      let newUserVote: 'up' | 'down' | null = voteType
-
-      // Handle vote changes
-      if (voteType === 'up') {
-        if (wasUp) {
-          newThumbsUp--
-          newUserVote = null
-        } else {
-          newThumbsUp++
-          if (wasDown) newThumbsDown--
-        }
-      } else {
-        if (wasDown) {
-          newThumbsDown--
-          newUserVote = null
-        } else {
-          newThumbsDown++
-          if (wasUp) newThumbsUp--
-        }
-      }
-
-      // Update mock data
-      mockCommunityData[objectId] = {
-        ...current,
-        thumbsUp: newThumbsUp,
-        thumbsDown: newThumbsDown,
-        userVote: newUserVote
-      }
-
-      return {
-        ...prev,
-        [objectId]: {
-          ...current,
-          thumbsUp: newThumbsUp,
-          thumbsDown: newThumbsDown,
-          userVote: newUserVote
-        }
-      }
-    })
+  const handleVote = async (objectId: string, voteType: 'up' | 'down') => {
+    // Note: Actual voting would require calling the smart contract
+    // For now, just show the current state from blockchain
+    console.log('Voting not implemented in UI yet. Object:', objectId, 'Vote:', voteType)
   }
 
   const getCommunityClassification = (rating: CommunityRating): ObjectClassification => {
@@ -122,7 +114,7 @@ export default function CommunityDialog({ open, onOpenChange, selectedObjects }:
   }
 
   const getClassificationBadge = (classification: ObjectClassification) => {
-    const variants: Record<ObjectClassification, { variant: "default" | "secondary" | "outline" | "destructive", icon: JSX.Element, label: string }> = {
+    const variants: Record<ObjectClassification, { variant: "default" | "secondary" | "outline" | "destructive", icon: React.ReactElement | null, label: string }> = {
       [ObjectClassification.VERIFIED]: { variant: "default", icon: <Shield className="w-3 h-3" />, label: "Verified" },
       [ObjectClassification.SAFE]: { variant: "secondary", icon: null, label: "Safe" },
       [ObjectClassification.WARNING]: { variant: "outline", icon: null, label: "Warning" },
@@ -182,6 +174,9 @@ export default function CommunityDialog({ open, onOpenChange, selectedObjects }:
                 
                 const communityClass = getCommunityClassification(rating)
                 
+                const hasVotes = rating.thumbsUp > 0 || rating.thumbsDown > 0
+                const isSubmitted = rating.submitter !== undefined
+                
                 return (
                   <Card key={item.object.id} className="bg-deep-ocean/50 border-white/10">
                     <CardHeader className="pb-3">
@@ -196,7 +191,7 @@ export default function CommunityDialog({ open, onOpenChange, selectedObjects }:
                         </div>
                         <div className="flex gap-2">
                           {getClassificationBadge(item.classification)}
-                          {getClassificationBadge(communityClass)}
+                          {hasVotes && getClassificationBadge(communityClass)}
                         </div>
                       </div>
                     </CardHeader>
@@ -232,18 +227,39 @@ export default function CommunityDialog({ open, onOpenChange, selectedObjects }:
                         </span>
                       </div>
 
-                      {/* Comments Preview */}
-                      {rating.comments.length > 0 && (
+                      {/* Status Messages */}
+                      {!isSubmitted && (
+                        <div className="flex items-center gap-2 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                          <Info className="w-4 h-4 text-blue-400" />
+                          <span className="text-sm text-blue-300">
+                            This object has not been submitted for community review yet
+                          </span>
+                        </div>
+                      )}
+                      
+                      {isSubmitted && !hasVotes && (
+                        <div className="flex items-center gap-2 p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                          <Info className="w-4 h-4 text-yellow-400" />
+                          <span className="text-sm text-yellow-300">
+                            No votes received yet - be the first to vote!
+                          </span>
+                        </div>
+                      )}
+                      
+                      {rating.metadata && (
                         <div className="space-y-2">
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                             <MessageCircle className="w-3 h-3" />
-                            Community Comments
+                            Submission Details
                           </div>
-                          {rating.comments.slice(0, 2).map((comment, idx) => (
-                            <div key={idx} className="text-xs text-muted-foreground bg-white/5 rounded p-2">
-                              "{comment}"
+                          <div className="text-xs text-muted-foreground bg-white/5 rounded p-2">
+                            {rating.metadata}
+                          </div>
+                          {rating.submissionTime && (
+                            <div className="text-xs text-muted-foreground">
+                              Submitted: {new Date(rating.submissionTime).toLocaleDateString()}
                             </div>
-                          ))}
+                          )}
                         </div>
                       )}
                     </CardContent>

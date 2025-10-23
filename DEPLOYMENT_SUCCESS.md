@@ -29,7 +29,7 @@
 - Confirm the transaction (requires gas fee)
 
 ### 3. Vote on Community Submissions
-- Click "Community Votes" button in the header (shows pending count)
+- Click "community review" button in the header (shows pending count)
 - Review submitted objects from other users
 - Vote "Safe" (👍) or "Risky" (👎) for each object
 - Each wallet can only vote once per object
@@ -102,7 +102,7 @@ sui client object 0x58d2b7fddafd0773ece3a5745c279f336fa9a6ada615f348e57a9a7d05b5
    - Each vote helps build the reputation database
 
 3. **Monitor Activity**:
-   - Watch the Community Votes counter
+   - Watch the community review counter
    - Review new submissions regularly
    - Help identify risky objects
 

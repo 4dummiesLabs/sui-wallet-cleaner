@@ -139,21 +139,15 @@ export class TransactionService {
         ...transferableObjects
       ]
 
-      if (allObjectIds.length === 0) {
-        return {
-          success: false,
-          error: 'No valid objects to burn',
+      if (allObjectIds.length > 0) {
+        // Sui supports batching up to ~512 objects per transferObjects call
+        // Split into batches of 100 for safety
+        const BATCH_SIZE = 100
+
+        for (let i = 0; i < allObjectIds.length; i += BATCH_SIZE) {
+          const batch = allObjectIds.slice(i, i + BATCH_SIZE)
+          tx.transferObjects(batch, BURN_ADDRESS)
         }
-      }
-
-      // Sui supports batching up to ~512 objects per transferObjects call
-      // Split into batches of 100 for safety
-      const BATCH_SIZE = 100
-
-      for (let i = 0; i < allObjectIds.length; i += BATCH_SIZE) {
-        const batch = allObjectIds.slice(i, i + BATCH_SIZE)
-        console.log(`Adding batch ${i / BATCH_SIZE + 1} with ${batch.length} objects to burn transaction`)
-        tx.transferObjects(batch, BURN_ADDRESS)
       }
 
       // Set sender
@@ -193,12 +187,6 @@ export class TransactionService {
       })
 
       const rawTxBytesHex = toHex(txBytes)
-      
-      console.log('Transaction built for burning:', {
-        txBytesLength: txBytes.length,
-        hexLength: rawTxBytesHex.length,
-        first50Hex: rawTxBytesHex.substring(0, 50),
-      })
 
       // Request sponsorship from Gas Station
       console.log('Requesting sponsorship...', {
@@ -279,19 +267,15 @@ Original error: ${sponsorError.message}`
       const userSignature = await signTransaction({ transaction: toBase64(sponsoredBytes) })
       console.log('✅ User signature received:', userSignature)
 
-      // Handle different signature response formats
-      const finalUserSignature = userSignature.signature || userSignature
-
       console.log('Executing sponsored transaction...')
       console.log('Sponsored bytes length:', sponsoredBytes.length)
-      console.log('User signature type:', typeof finalUserSignature)
-      console.log('User signature:', typeof finalUserSignature === 'string' ? finalUserSignature.substring(0, 20) + '...' : 'not a string')
+      console.log('User signature:', userSignature.signature.substring(0, 20) + '...')
       console.log('Sponsor signature:', sponsorSignature.substring(0, 20) + '...')
 
       // Execute transaction with both signatures
       const result = await this.client.executeTransactionBlock({
         transactionBlock: sponsoredBytes,
-        signature: [finalUserSignature, sponsorSignature],
+        signature: [userSignature.signature, sponsorSignature],
         options: {
           showEffects: true,
           showEvents: true,
