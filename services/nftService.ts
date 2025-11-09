@@ -82,21 +82,14 @@ export class NFTService {
       packageId,
       moduleName,
       digest,
-      owner: typeof owner === 'object' && owner && 'AddressOwner' in owner 
+      owner: typeof owner === 'object' && owner !== null && 'AddressOwner' in owner 
         ? owner.AddressOwner 
         : typeof owner === 'string' 
         ? owner 
         : '',
       previousTransaction: previousTransaction || undefined,
       storageRebate: storageRebate || undefined,
-      content: content && content.dataType === 'moveObject' && 'type' in content && 'hasPublicTransfer' in content && 'fields' in content
-        ? {
-            dataType: content.dataType,
-            type: content.type as string,
-            hasPublicTransfer: content.hasPublicTransfer as boolean,
-            fields: content.fields as Record<string, any>
-          }
-        : undefined,
+      content: content as any || undefined,
     }
   }
 

@@ -6,8 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Flame, AlertTriangle, CheckCircle, Skull } from 'lucide-react'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { Loader2, Flame, AlertTriangle, CheckCircle, Skull } from 'lucide-react'
 import { TransactionService } from '@/services/transactionService'
 
 interface BurnDialogProps {
@@ -17,7 +16,7 @@ interface BurnDialogProps {
   onBurnComplete: () => void
   transactionService: TransactionService
   senderAddress: string
-  onExecuteTransaction: (transaction: unknown) => Promise<unknown>
+  onExecuteTransaction: (transaction: any) => Promise<any>
 }
 
 export default function BurnDialog({
@@ -45,7 +44,7 @@ export default function BurnDialog({
           objects: selectedObjects.map(item => item.object),
           senderAddress,
         },
-        onExecuteTransaction as (tx: unknown) => Promise<unknown>
+        onExecuteTransaction
       )
 
       if (result.success && result.digest) {
@@ -170,8 +169,8 @@ export default function BurnDialog({
             </div>
           </div>
 
-          {/* Progressive Warnings */}
-          <Alert variant="destructive" role="alert">
+          {/* Warning */}
+          <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               <strong>Warning:</strong> Burned objects cannot be recovered. They will be sent to a burn address and permanently lost.
@@ -179,7 +178,7 @@ export default function BurnDialog({
           </Alert>
 
           {error && (
-            <Alert variant="destructive" role="alert">
+            <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -194,11 +193,9 @@ export default function BurnDialog({
             variant="destructive"
             onClick={handleBurn}
             disabled={isLoading}
-            className={confirmationStep >= 1 ? 'bg-red-600 hover:bg-red-700' : ''}
-            aria-describedby="burn-warning"
           >
-            {isLoading && <LoadingSpinner size="sm" className="mr-2" />}
-            {confirmationContent.buttonText}
+            {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {isLoading ? 'Burning...' : 'Continue'}
           </Button>
         </DialogFooter>
       </DialogContent>

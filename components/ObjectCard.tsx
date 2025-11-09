@@ -1,12 +1,12 @@
 'use client'
 
 import { ClassifiedObject, ObjectType, ObjectClassification, CoinObject, NFTObject } from '@/types/objects'
-import { cn } from '@/lib/utils'
-import { ExternalLink, Eye, EyeOff } from 'lucide-react'
-import { useState, memo } from 'react'
-import LazyImage from './LazyImage'
+import { cn, truncateAddress } from '@/lib/utils'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { AlertTriangle, CheckCircle, XCircle, ExternalLink, Eye, EyeOff, Coins, Image } from 'lucide-react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import SpotlightCard from './SpotlightCard'
 
 interface ObjectCardProps {
   item: ClassifiedObject
@@ -16,21 +16,38 @@ interface ObjectCardProps {
   totalOfType?: number
 }
 
-function ObjectCard({ item, isSelected, onSelect, onToggleHide }: ObjectCardProps) {
+export default function ObjectCard({ item, isSelected, onSelect, onToggleHide, totalOfType }: ObjectCardProps) {
+  const [imageError, setImageError] = useState(false)
+  const [coinImageError, setCoinImageError] = useState(false)
   const [isHidden, setIsHidden] = useState(item.isHidden || false)
 
-  const getClassificationColor = () => {
+  const getClassificationIcon = () => {
     switch (item.classification) {
       case ObjectClassification.VERIFIED:
-        return "text-green-400"
+        return <CheckCircle className="w-4 h-4 text-green-600" />
       case ObjectClassification.SAFE:
-        return "text-blue-400"
+        return <CheckCircle className="w-4 h-4 text-blue-600" />
       case ObjectClassification.WARNING:
-        return "text-yellow-400"
+        return <AlertTriangle className="w-4 h-4 text-yellow-600" />
       case ObjectClassification.DANGER:
-        return "text-red-400"
+        return <XCircle className="w-4 h-4 text-red-600" />
       default:
-        return "text-foreground-muted"
+        return <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+    }
+  }
+
+  const getClassificationVariant = (): "default" | "secondary" | "outline" | "destructive" => {
+    switch (item.classification) {
+      case ObjectClassification.VERIFIED:
+        return "default"
+      case ObjectClassification.SAFE:
+        return "secondary"
+      case ObjectClassification.WARNING:
+        return "outline"
+      case ObjectClassification.DANGER:
+        return "destructive"
+      default:
+        return "outline"
     }
   }
 
@@ -45,28 +62,32 @@ function ObjectCard({ item, isSelected, onSelect, onToggleHide }: ObjectCardProp
       const formattedBalance = (Number(coin.balance) / Math.pow(10, coin.decimals)).toLocaleString()
       
       return (
-        <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center" style={{ background: 'var(--background-elevated)' }}>
-              <LazyImage
+        <div className="flex flex-col items-center space-y-3">
+          <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center bg-muted">
+            {coin.iconUrl && !coinImageError ? (
+              <img
                 src={coin.iconUrl}
                 alt={coin.symbol || 'Coin'}
-                className="w-full h-full object-cover rounded-full"
-                fallback={<div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
-                  <span className="text-xs font-medium text-primary">{(coin.symbol || 'T')[0]}</span>
-                </div>}
-                placeholder={<div className="w-full h-full bg-muted animate-pulse rounded-full" />}
+                className="w-full h-full object-cover"
+                onError={() => setCoinImageError(true)}
               />
-            </div>
-            <div className="flex-1">
-              <h3 className="heading-small text-foreground">{coin.symbol || 'Unknown Token'}</h3>
-              <p className="caption">{coin.name || 'Token'}</p>
-            </div>
+            ) : (
+              <Coins className="w-8 h-8 text-primary" />
+            )}
           </div>
-          <div className="text-right">
-            <p className="heading-medium text-foreground">{formattedBalance}</p>
+          <div className="text-center space-y-1 w-full">
+            <div className="flex items-center justify-center gap-2">
+              <p className="font-semibold text-lg">{coin.symbol || 'Unknown'}</p>
+              {totalOfType && totalOfType > 1 && (
+                <Badge variant="secondary" className="text-xs px-2 py-0">
+                  {totalOfType} objects
+                </Badge>
+              )}
+            </div>
+            <p className="text-2xl font-bold">{formattedBalance}</p>
+            <p className="text-xs text-muted-foreground">{coin.name}</p>
             {coin.priceUsd && (
-              <p className="caption">
+              <p className="text-xs text-muted-foreground">
                 ${(Number(coin.balance) / Math.pow(10, coin.decimals) * coin.priceUsd).toLocaleString(undefined, {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2
@@ -82,26 +103,39 @@ function ObjectCard({ item, isSelected, onSelect, onToggleHide }: ObjectCardProp
       const nft = item.object as NFTObject
 
       return (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="relative aspect-square bg-muted rounded-lg overflow-hidden">
-            <LazyImage
-              src={nft.imageUrl}
-              alt={nft.name || 'NFT'}
-              className="w-full h-full object-cover rounded-lg"
-              fallback={
-                <div className="w-full h-full flex items-center justify-center bg-muted rounded-lg">
-                  <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
-                    <span className="text-lg font-medium text-primary">NFT</span>
-                  </div>
-                </div>
-              }
-              placeholder={<div className="w-full h-full bg-muted animate-pulse rounded-lg" />}
-            />
+            {nft.imageUrl && !imageError ? (
+              <img
+                src={nft.imageUrl}
+                alt={nft.name || 'NFT'}
+                className="w-full h-full object-cover"
+                onError={() => setImageError(true)}
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Image className="w-12 h-12 text-muted-foreground" />
+              </div>
+            )}
+            {/* Show collection count badge */}
+            {totalOfType && totalOfType > 1 && (
+              <div className="absolute top-2 right-2">
+                <Badge variant="secondary" className="text-xs px-2 py-1 bg-black/70 backdrop-blur-sm">
+                  {totalOfType} NFTs
+                </Badge>
+              </div>
+            )}
           </div>
-          <div className="space-y-2">
-            <h3 className="heading-small text-foreground truncate">{nft.name || 'Unnamed NFT'}</h3>
+          <div className="space-y-1">
+            <p className="font-semibold truncate">{nft.name || 'Unnamed NFT'}</p>
+            {totalOfType && totalOfType > 1 && (
+              <p className="text-xs text-muted-foreground">
+                {nft.moduleName} Collection
+              </p>
+            )}
             {nft.description && (
-              <p className="caption line-clamp-2">{nft.description}</p>
+              <p className="text-xs text-muted-foreground line-clamp-2">{nft.description}</p>
             )}
           </div>
         </div>
@@ -109,54 +143,26 @@ function ObjectCard({ item, isSelected, onSelect, onToggleHide }: ObjectCardProp
     }
 
     return (
-      <div className="space-y-4">
-        <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center mx-auto">
-          <span className="text-lg font-medium text-primary">OBJ</span>
+      <div className="flex flex-col items-center space-y-3">
+        <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
+          <span className="text-2xl font-bold text-muted-foreground">?</span>
         </div>
-        <div className="text-center">
-          <h3 className="heading-small text-foreground">{item.object.name || 'Unknown Object'}</h3>
-        </div>
+        <p className="font-medium">{item.object.name || 'Unknown Object'}</p>
       </div>
     )
   }
 
-  const getSpotlightColor = () => {
-    switch (item.classification) {
-      case ObjectClassification.VERIFIED:
-        return "rgba(0, 255, 128, 0.9)" // Bright green for verified
-      case ObjectClassification.SAFE:
-        return "rgba(0, 255, 255, 0.8)" // Bright cyan for safe
-      case ObjectClassification.WARNING:
-        return "rgba(255, 215, 0, 0.8)" // Bright gold for warning
-      case ObjectClassification.DANGER:
-        return "rgba(255, 0, 128, 0.8)" // Bright magenta for danger
-      default:
-        return "rgba(0, 255, 255, 0.7)" // Default bright cyan
-    }
-  }
-
   return (
-    <SpotlightCard 
-      spotlightColor={getSpotlightColor()}
+    <Card
       className={cn(
-        'sui-card relative cursor-pointer group transition-all duration-200',
-        'hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/5',
-        isSelected && 'ring-2 ring-primary scale-[1.02]',
+        'relative transition-all cursor-pointer hover:shadow-md',
+        isSelected && 'ring-2 ring-primary ring-offset-2',
         isHidden && 'opacity-50'
       )}
+      onClick={() => onSelect(!isSelected)}
     >
-      <div
-        onClick={() => onSelect(!isSelected)}
-        role="article"
-        aria-label={`${item.object.name || 'Object'} - ${item.classification} classification`}
-        className="relative"
-      >
-      {/* Minimal Selection Indicator */}
-      <div className="absolute top-4 left-4 z-10">
-        <div className={cn(
-          "w-4 h-4 rounded border-2 transition-all",
-          isSelected ? "bg-primary border-primary" : "border-border"
-        )}>
+      <CardContent className="p-4">
+        <div className="absolute top-2 left-2 z-10">
           <input
             type="checkbox"
             checked={isSelected}
@@ -164,65 +170,64 @@ function ObjectCard({ item, isSelected, onSelect, onToggleHide }: ObjectCardProp
               e.stopPropagation()
               onSelect(e.target.checked)
             }}
-            className="sr-only"
+            className="w-4 h-4 cursor-pointer"
             onClick={(e) => e.stopPropagation()}
-            aria-label={`Select ${item.object.name || 'object'} for bulk actions`}
           />
         </div>
-      </div>
 
-      {/* Hide Toggle - Only Show on Hover */}
-      <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 w-6 p-0 text-foreground-muted hover:text-foreground"
-          onClick={(e) => {
-            e.stopPropagation()
-            handleToggleHide()
-          }}
-          aria-label={isHidden ? `Show ${item.object.name || 'object'}` : `Hide ${item.object.name || 'object'}`}
-        >
-          {isHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-        </Button>
-      </div>
-
-      {/* Content */}
-      <div className="pt-10 pb-4">
-        {renderObjectContent()}
-      </div>
-
-      {/* Minimal Classification Footer */}
-      <div className="border-t border-border pt-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className={cn("caption font-medium", getClassificationColor())}>
-            {item.classification}
-          </span>
-          <span className="caption">{item.object.objectType}</span>
+        <div className="absolute top-2 right-2 z-10">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleToggleHide()
+            }}
+          >
+            {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </Button>
         </div>
 
-        {item.classificationReason && (
-          <p className="caption leading-relaxed">{item.classificationReason}</p>
-        )}
+        <div className="pt-8">
+          {renderObjectContent()}
+        </div>
 
-        {item.object.objectType === ObjectType.NFT && (item.object as NFTObject).projectUrl && (
-          <div className="flex justify-end">
-            <a
-              href={(item.object as NFTObject).projectUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="caption hover:accent-text transition-colors inline-flex items-center gap-1"
-              onClick={(e) => e.stopPropagation()}
-              aria-label={`Visit project website for ${item.object.name || 'NFT'}`}
-            >
-              View Project <ExternalLink className="w-3 h-3" />
-            </a>
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <Badge variant={getClassificationVariant()} className="gap-1">
+              {getClassificationIcon()}
+              {item.classification}
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              {item.object.objectType}
+            </Badge>
           </div>
-        )}
-      </div>
-      </div>
-    </SpotlightCard>
+
+          {item.classificationReason && (
+            <p className="text-xs text-muted-foreground">{item.classificationReason}</p>
+          )}
+
+          {item.object.objectType === ObjectType.NFT && (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span title={(item.object as NFTObject).packageId}>
+                {truncateAddress((item.object as NFTObject).packageId, 6)}
+              </span>
+              {(item.object as NFTObject).projectUrl && (
+                <a
+                  href={(item.object as NFTObject).projectUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
-
-export default memo(ObjectCard)

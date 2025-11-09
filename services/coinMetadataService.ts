@@ -1,6 +1,4 @@
 import { SuiClient } from '@mysten/sui/client'
-import { cache } from '@/lib/cache'
-import { CircuitBreaker } from '@/lib/circuit-breaker'
 
 export interface CoinMetadata {
   coinType: string
@@ -16,15 +14,9 @@ export interface CoinMetadata {
 export class CoinMetadataService {
   private client: SuiClient
   private metadataCache = new Map<string, CoinMetadata>()
-  private priceCircuitBreaker: CircuitBreaker
 
   constructor(client: SuiClient) {
     this.client = client
-    this.priceCircuitBreaker = new CircuitBreaker({
-      failureThreshold: 3,
-      timeout: 10000, // 10 seconds
-      resetTimeout: 60000 // 1 minute
-    })
   }
 
   async getCoinMetadata(coinType: string): Promise<CoinMetadata> {
@@ -221,108 +213,21 @@ export class CoinMetadataService {
     return `data:image/svg+xml;base64,${btoa(svg)}`
   }
 
-  // Method to get coin price from external API with caching and circuit breaker
+  // Method to get coin price from external API (optional)
   async getCoinPrice(coingeckoId: string): Promise<number | null> {
-    const cacheKey = `price_${coingeckoId}`
-    
-    // Check cache first (5 minute TTL)
-    const cachedPrice = cache.get<number>(cacheKey)
-    if (cachedPrice !== null) {
-      return cachedPrice
-    }
-
     try {
-      const price = await this.priceCircuitBreaker.call(async () => {
-        const response = await fetch(
-          `https://api.coingecko.com/api/v3/simple/price?ids=${coingeckoId}&vs_currencies=usd`
-        )
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
-        const usdPrice = data[coingeckoId]?.usd
-        
-        if (typeof usdPrice !== 'number') {
-          throw new Error(`Invalid price data for ${coingeckoId}`)
-        }
-        
-        return usdPrice
-      })
-
-      // Cache successful result for 5 minutes
-      cache.set(cacheKey, price, 300000)
-      return price
+      const response = await fetch(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${coingeckoId}&vs_currencies=usd`,
+        { cache: 'no-cache' }
+      )
+      
+      if (!response.ok) return null
+      
+      const data = await response.json()
+      return data[coingeckoId]?.usd || null
     } catch (error) {
       console.warn(`Failed to fetch price for ${coingeckoId}:`, error)
-      
-      // Return cached stale data if available (up to 1 hour old)
-      const staleCacheKey = `stale_price_${coingeckoId}`
-      const stalePrice = cache.get<number>(staleCacheKey)
-      if (stalePrice !== null) {
-        return stalePrice
-      }
-      
       return null
     }
-  }
-
-  // Batch fetch multiple coin prices
-  async getBatchCoinPrices(coingeckoIds: string[]): Promise<Record<string, number | null>> {
-    if (coingeckoIds.length === 0) return {}
-    
-    const results: Record<string, number | null> = {}
-    const uncachedIds: string[] = []
-    
-    // Check cache for each ID
-    for (const id of coingeckoIds) {
-      const cacheKey = `price_${id}`
-      const cachedPrice = cache.get<number>(cacheKey)
-      if (cachedPrice !== null) {
-        results[id] = cachedPrice
-      } else {
-        uncachedIds.push(id)
-      }
-    }
-    
-    // Fetch uncached prices in batch
-    if (uncachedIds.length > 0) {
-      try {
-        const batchData = await this.priceCircuitBreaker.call(async () => {
-          const idsParam = uncachedIds.join(',')
-          const response = await fetch(
-            `https://api.coingecko.com/api/v3/simple/price?ids=${idsParam}&vs_currencies=usd`
-          )
-          
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-          }
-          
-          return response.json()
-        })
-
-        // Cache and store results
-        for (const id of uncachedIds) {
-          const price = batchData[id]?.usd || null
-          results[id] = price
-          
-          if (price !== null) {
-            cache.set(`price_${id}`, price, 300000) // 5 minutes
-            cache.set(`stale_price_${id}`, price, 3600000) // 1 hour for stale data
-          }
-        }
-      } catch (error) {
-        console.warn('Failed to fetch batch prices:', error)
-        // Fill remaining with null
-        for (const id of uncachedIds) {
-          if (!(id in results)) {
-            results[id] = null
-          }
-        }
-      }
-    }
-    
-    return results
   }
 }
